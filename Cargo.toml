@@ -21,7 +21,7 @@ serde        = { version = "1", features = ["derive"] }
 serde_json   = "1"
 
 # HTTP client (rustls — no OpenSSL on the host)
-reqwest      = { version = "0.13", default-features = false, features = ["json", "rustls-tls"] }
+reqwest      = { version = "0.13", default-features = false, features = ["json", "rustls"] }
 
 # Embedding storage
 lancedb      = "0.30"   # latest: 0.30.0
@@ -29,6 +29,10 @@ arrow-array  = "59"     # must match the version lancedb exposes; latest: 59.0.0
 
 # MCP server
 rmcp         = { version = "1.7", features = ["server", "transport-io"] }   # latest: 1.7.0
+
+# Async utilities
+futures      = "0.3"
+async-trait  = "0.1"
 
 # Document parsing
 pdfium-render = { version = "0.9", features = ["thread_safe", "pdfium_latest"] }   # latest: 0.9.2
