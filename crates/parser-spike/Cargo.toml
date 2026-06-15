@@ -1,0 +1,14 @@
+[package]
+name             = "athenaeum-parser-spike"
+version.workspace     = true
+edition.workspace     = true
+license.workspace     = true
+rust-version.workspace = true
+
+[dependencies]
+thiserror     = { workspace = true }
+pdfium-render = { workspace = true }
+epub          = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

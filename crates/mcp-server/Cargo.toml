@@ -1,0 +1,17 @@
+[package]
+name             = "athenaeum-mcp-server"
+version.workspace     = true
+edition.workspace     = true
+license.workspace     = true
+rust-version.workspace = true
+
+[[bin]]
+name = "athenaeum-mcp-server"
+path = "src/main.rs"
+
+[dependencies]
+athenaeum-core = { path = "../core" }
+tokio          = { workspace = true }
+rmcp           = { workspace = true }
+thiserror      = { workspace = true }
+anyhow         = { workspace = true }
