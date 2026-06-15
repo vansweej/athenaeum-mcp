@@ -29,7 +29,8 @@ arrow-array  = "58"     # must match the version lancedb 0.30 exposes
 arrow-schema = "58"     # must match arrow-array
 
 # MCP server
-rmcp         = { version = "1.7", features = ["server", "transport-io"] }   # latest: 1.7.0
+rmcp         = { version = "1.7", features = ["server", "transport-io", "macros", "schemars"] }   # latest: 1.7.0
+schemars     = "1"
 
 # Async utilities
 futures      = "0.3"
