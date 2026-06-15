@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use athenaeum_core::{Config, Engine, OllamaEmbedder};
+use athenaeum_core::{Config, Embedder, Engine};
 use rmcp::{
     ServerHandler, ServiceExt,
     handler::server::router::tool::ToolRouter,
@@ -26,16 +26,16 @@ struct SearchArgs {
 // ─── Server struct ────────────────────────────────────────────────────────────
 
 #[derive(Clone)]
-struct AthenaeumServer {
-    engine: Arc<Engine<OllamaEmbedder>>,
+struct AthenaeumServer<E: Embedder + 'static> {
+    engine: Arc<Engine<E>>,
     // The router is accessed by the rmcp macro-generated code, not directly.
     #[allow(dead_code)]
-    tool_router: ToolRouter<AthenaeumServer>,
+    tool_router: ToolRouter<AthenaeumServer<E>>,
 }
 
 #[tool_router]
-impl AthenaeumServer {
-    fn new(engine: Engine<OllamaEmbedder>) -> Self {
+impl<E: Embedder + 'static> AthenaeumServer<E> {
+    fn new(engine: Engine<E>) -> Self {
         Self {
             engine: Arc::new(engine),
             tool_router: Self::tool_router(),
@@ -61,7 +61,7 @@ impl AthenaeumServer {
 }
 
 #[tool_handler]
-impl ServerHandler for AthenaeumServer {
+impl<E: Embedder + 'static> ServerHandler for AthenaeumServer<E> {
     fn get_info(&self) -> ServerInfo {
         ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
             .with_instructions(
