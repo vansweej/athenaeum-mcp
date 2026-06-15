@@ -16,6 +16,10 @@ corpus/
 *.pdf
 *.mobi
 
+# Exception: self-authored canary fixtures are safe to commit
+!crates/parser-spike/tests/fixtures/*.epub
+!crates/parser-spike/tests/fixtures/*.pdf
+
 # Environment secrets
 .env
 .env.*
