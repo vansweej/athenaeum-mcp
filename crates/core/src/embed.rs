@@ -112,12 +112,12 @@ impl Embedder for OllamaEmbedder {
 
 // ─── Test utilities ───────────────────────────────────────────────────────────
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 pub struct FakeEmbedder {
     pub dim: usize,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 #[async_trait]
 impl Embedder for FakeEmbedder {
     async fn embed(&self, inputs: &[String]) -> Result<Vec<Vec<f32>>, CoreError> {
