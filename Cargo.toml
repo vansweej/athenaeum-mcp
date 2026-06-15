@@ -25,7 +25,8 @@ reqwest      = { version = "0.13", default-features = false, features = ["json",
 
 # Embedding storage
 lancedb      = "0.30"   # latest: 0.30.0
-arrow-array  = "59"     # must match the version lancedb exposes; latest: 59.0.0
+arrow-array  = "58"     # must match the version lancedb 0.30 exposes
+arrow-schema = "58"     # must match arrow-array
 
 # MCP server
 rmcp         = { version = "1.7", features = ["server", "transport-io"] }   # latest: 1.7.0
