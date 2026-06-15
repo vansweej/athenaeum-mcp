@@ -1,0 +1,24 @@
+# Rust build artefacts
+/target/
+
+# Nix build outputs
+result
+result-*
+
+# LanceDB data store — never committed
+.lancedb/
+*.lance
+data/
+
+# Corpus — copyrighted books must never leave the local machine (see docs/decision-brief.md)
+corpus/
+*.epub
+*.pdf
+*.mobi
+
+# Environment secrets
+.env
+.env.*
+
+# macOS
+.DS_Store
