@@ -47,10 +47,13 @@ pub fn extract_epub_text(path: &Path) -> Result<String, SpikeError> {
     let mut doc = EpubDoc::new(path).map_err(|e| SpikeError::EpubFailed(e.to_string()))?;
 
     let mut pages: Vec<String> = Vec::new();
-    // go_next() returns bool, not Result.
-    while doc.go_next() {
+    // EpubDoc starts positioned at the first item; read it before advancing.
+    loop {
         if let Some((content, _mime)) = doc.get_current_str() {
             pages.push(content);
+        }
+        if !doc.go_next() {
+            break;
         }
     }
 
