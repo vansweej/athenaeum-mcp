@@ -70,6 +70,77 @@ impl<E: Embedder + 'static> ServerHandler for AthenaeumServer<E> {
     }
 }
 
+// ─── Tests ────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use athenaeum_core::{SearchHit, Store, embed::FakeEmbedder};
+    use rmcp::model::RawContent;
+
+    async fn seed(server: &AthenaeumServer<FakeEmbedder>) {
+        server
+            .engine
+            .add_passage("book-a.epub", "p. 1", "the quick brown fox")
+            .await
+            .unwrap();
+        server
+            .engine
+            .add_passage("book-b.epub", "p. 2", "pack my box with five dozen liquor jugs")
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn search_tool_returns_hits_as_json() {
+        // Keep `dir` alive for the entire test so LanceDB can access the path.
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::open(dir.path(), "passages", 768).await.unwrap();
+        let engine = Engine::with_parts(FakeEmbedder { dim: 768 }, store, 768);
+        let server = AthenaeumServer::new(engine);
+
+        seed(&server).await;
+
+        let result = server
+            .search(Parameters(SearchArgs {
+                query: "the quick brown fox".to_string(),
+                k: 2,
+            }))
+            .await;
+
+        let ok = result.expect("search should succeed");
+        let text = match &ok.content[0].raw {
+            RawContent::Text(t) => &t.text,
+            _ => panic!("expected text content"),
+        };
+        let hits: Vec<SearchHit> = serde_json::from_str(text).unwrap();
+        assert!(!hits.is_empty());
+        assert_eq!(hits[0].source, "book-a.epub");
+        assert!(
+            hits[0].score >= 0.0 && hits[0].score <= 1.0,
+            "score out of range: {}",
+            hits[0].score
+        );
+    }
+
+    #[tokio::test]
+    async fn search_tool_empty_query_returns_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::open(dir.path(), "passages", 768).await.unwrap();
+        let engine = Engine::with_parts(FakeEmbedder { dim: 768 }, store, 768);
+        let server = AthenaeumServer::new(engine);
+
+        let result = server
+            .search(Parameters(SearchArgs {
+                query: "".to_string(),
+                k: 5,
+            }))
+            .await;
+
+        assert!(result.is_err());
+    }
+}
+
 // ─── Entry point ─────────────────────────────────────────────────────────────
 
 #[tokio::main]
