@@ -26,11 +26,11 @@ pub fn extract_pdf_text(path: &Path) -> Result<String, SpikeError> {
         .load_pdf_from_file(path, None)
         .map_err(|e| SpikeError::PdfFailed(e.to_string()))?;
 
+    // page.text() borrows `page`; extract the string before the page is dropped.
     let text = doc
         .pages()
         .iter()
-        .filter_map(|page| page.text().ok())
-        .map(|t| t.all())
+        .filter_map(|page| page.text().ok().map(|t| t.all()))
         .collect::<Vec<_>>()
         .join("\n");
 
@@ -47,7 +47,8 @@ pub fn extract_epub_text(path: &Path) -> Result<String, SpikeError> {
     let mut doc = EpubDoc::new(path).map_err(|e| SpikeError::EpubFailed(e.to_string()))?;
 
     let mut pages: Vec<String> = Vec::new();
-    while doc.go_next().is_ok() {
+    // go_next() returns bool, not Result.
+    while doc.go_next() {
         if let Some((content, _mime)) = doc.get_current_str() {
             pages.push(content);
         }
