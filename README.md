@@ -20,7 +20,7 @@ architecture decisions, and deferred feature roadmap.
 
 | Crate | Name | Role |
 |---|---|---|
-| `crates/core` | `athenaeum-core` | Ollama embedding + LanceDB storage + `search(query, k)` |
+| `crates/core` | `athenaeum-core` | Ollama embedding + LanceDB storage + `search(query, k)` + `add_passage` seeding |
 | `crates/ingest` | `athenaeum-ingest` | EPUB / PDF parse, chunk, cite |
 | `crates/mcp-server` | `athenaeum-mcp-server` | `rmcp` binary — the MCP server spine |
 | `crates/parser-spike` | `athenaeum-parser-spike` | Permanent pdfium + epub version canary |
@@ -60,9 +60,26 @@ nix develop --command cargo fmt
 # Coverage (target ≥ 90%)
 nix develop --command cargo tarpaulin
 
-# Run the MCP server (scaffold — no tools registered yet)
+# Run the MCP server (exposes search(query, k) over stdio)
+# Requires Ollama running with nomic-embed-text; LanceDB data stored under ./data/athenaeum
 nix develop --command cargo run -p athenaeum-mcp-server
 ```
+
+## Configuration
+
+The server has hardcoded compile-time defaults for the single-user local build.
+Override any field by constructing `athenaeum_core::Config` directly (used in
+tests with a `tempdir` database path).
+
+| Field | Default | Description |
+|---|---|---|
+| `db_path` | `./data/athenaeum` | LanceDB database directory |
+| `table_name` | `passages` | LanceDB table name |
+| `ollama_url` | `http://localhost:11434` | Ollama base URL (no trailing slash) |
+| `embed_model` | `nomic-embed-text` | Ollama embedding model |
+| `embed_dim` | `768` | Embedding vector dimension |
+
+No environment-variable overrides exist in this build step.
 
 ## Architecture decision records
 
