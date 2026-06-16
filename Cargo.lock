@@ -410,6 +410,8 @@ name = "athenaeum-ingest"
 version = "0.1.0"
 dependencies = [
  "athenaeum-core",
+ "epub",
+ "pdfium-render",
  "serde",
  "tempfile",
  "thiserror",
