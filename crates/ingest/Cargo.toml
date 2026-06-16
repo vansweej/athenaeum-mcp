@@ -6,9 +6,12 @@ license.workspace     = true
 rust-version.workspace = true
 
 [dependencies]
-athenaeum-core = { path = "../core" }
+athenauthem-core = { path = "../core" }
 thiserror      = { workspace = true }
 serde          = { workspace = true }
+pdfium-render  = { workspace = true }
+epub           = { workspace = true }
+tokio          = { workspace = true }
 
 [dev-dependencies]
 tokio    = { workspace = true }
