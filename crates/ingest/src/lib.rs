@@ -1,10 +1,9 @@
-pub mod error;
-pub mod ingest;
-pub mod extract;
 pub mod chunking;
+pub mod error;
+pub mod extract;
+pub mod ingest;
 
+pub use chunking::{chunk_text, ChunkingConfig, TextChunk};
 pub use error::IngestError;
-pub use ingest::{Chunk, IngestSummary, ingest};
-pub use extract::{ExtractedDocument, ExtractedPage, EpubSection};
-pub use chunking::{ChunkingConfig, TextChunk, chunk_text};
-
+pub use extract::{EpubSection, ExtractedDocument, ExtractedPage};
+pub use ingest::{ingest, Chunk, IngestSummary};

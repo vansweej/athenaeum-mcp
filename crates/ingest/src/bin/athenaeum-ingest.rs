@@ -1,11 +1,11 @@
 //! athenaeum-ingest — CLI tool for bulk ingestion of PDF and EPUB files into the personal library.
 
-use std::path::{Path, PathBuf};
-use std::fs;
 use anyhow::{Context, Result};
-use clap::Parser;
 use athenaeum_core::{Config, Engine};
 use athenaeum_ingest::ingest;
+use clap::Parser;
+use std::fs;
+use std::path::{Path, PathBuf};
 
 #[derive(Parser, Debug)]
 #[command(name = "athenaeum-ingest")]
@@ -64,20 +64,12 @@ async fn main() -> Result<()> {
             .and_then(|n| n.to_str())
             .unwrap_or("unknown");
 
-        print!(
-            "[{}/{}] Ingesting {}... ",
-            idx + 1,
-            files.len(),
-            file_name
-        );
+        print!("[{}/{}] Ingesting {}... ", idx + 1, files.len(), file_name);
         std::io::Write::flush(&mut std::io::stdout()).ok();
 
         match ingest(&engine, file_path).await {
             Ok(summary) => {
-                println!(
-                    "✓ ({} chunks)",
-                    summary.chunks
-                );
+                println!("✓ ({} chunks)", summary.chunks);
                 total_documents += summary.documents;
                 total_chunks += summary.chunks;
 
@@ -103,7 +95,7 @@ async fn main() -> Result<()> {
     println!("Total chunks: {}", total_chunks);
 
     if !failed_files.is_empty() {
-        println!("\n{}", "Failed Files:".to_string());
+        println!("\nFailed Files:");
         for (file_name, error) in failed_files {
             println!("  - {}: {}", file_name, error);
         }

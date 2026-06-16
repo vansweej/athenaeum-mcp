@@ -2,27 +2,27 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use crate::error::IngestError;
-use crate::extract::{extract_pdf, extract_epub};
 use crate::chunking::{chunk_text, ChunkingConfig};
-use athenaeum_core::Engine;
+use crate::error::IngestError;
+use crate::extract::{extract_epub, extract_pdf};
 use athenaeum_core::embed::Embedder;
+use athenaeum_core::Engine;
 
 /// A text chunk extracted from a document, with full citation metadata.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Chunk {
-    pub title:   String,
+    pub title: String,
     pub chapter: Option<String>,
     pub section: Option<String>,
-    pub page:    Option<u32>,
-    pub text:    String,
+    pub page: Option<u32>,
+    pub text: String,
 }
 
 /// Summary returned after a successful ingestion run.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IngestSummary {
     pub documents: usize,
-    pub chunks:    usize,
+    pub chunks: usize,
 }
 
 /// Ingest the document at `path`, chunk it, and write chunks into the vector store.
@@ -50,10 +50,12 @@ pub async fn ingest<E: Embedder>(
     let chunks = match extension.as_str() {
         "pdf" => ingest_pdf(path).await?,
         "epub" => ingest_epub(path).await?,
-        _ => return Err(IngestError::UnsupportedFileType(format!(
-            "unsupported file type: {}",
-            extension
-        ))),
+        _ => {
+            return Err(IngestError::UnsupportedFileType(format!(
+                "unsupported file type: {}",
+                extension
+            )))
+        }
     };
 
     // Convert chunks to (source, location, text) tuples for batch insertion
@@ -85,12 +87,12 @@ pub async fn ingest<E: Embedder>(
         .collect();
 
     let chunk_count = passages.len();
-    
+
     // Insert chunks into the vector store
     engine
         .add_passages(&passages)
         .await
-        .map_err(|e| IngestError::from(e))?;
+        .map_err(IngestError::from)?;
 
     Ok(IngestSummary {
         documents: 1,
@@ -155,7 +157,7 @@ mod tests {
             .extension()
             .and_then(|ext| ext.to_str())
             .map(|s| s.to_lowercase());
-        
+
         assert_eq!(extension, Some("txt".to_string()));
     }
 

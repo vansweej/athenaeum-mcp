@@ -35,7 +35,8 @@ impl Engine<OllamaEmbedder> {
     /// Build an `Engine` from the given `Config`, connecting to the default
     /// Ollama instance and the LanceDB path specified in the config.
     pub async fn new(config: Config) -> Result<Self, CoreError> {
-        let embedder = OllamaEmbedder::new(&config.ollama_url, &config.embed_model, config.embed_dim);
+        let embedder =
+            OllamaEmbedder::new(&config.ollama_url, &config.embed_model, config.embed_dim);
         let store = Store::open(&config.db_path, &config.table_name, config.embed_dim).await?;
         Ok(Self {
             embedder,
@@ -50,7 +51,11 @@ impl<E: Embedder> Engine<E> {
     ///
     /// Intended for test injection of `FakeEmbedder` with a `tempdir` store.
     pub fn with_parts(embedder: E, store: Store, dim: usize) -> Self {
-        Self { embedder, store, dim }
+        Self {
+            embedder,
+            store,
+            dim,
+        }
     }
 
     /// Embed a single passage and insert it into the store.
@@ -75,7 +80,7 @@ impl<E: Embedder> Engine<E> {
         self.store.add(&vectors, &[passage]).await
     }
 
-    /// Batch embed and insert passages. This is the primary path for the 
+    /// Batch embed and insert passages. This is the primary path for the
     /// ingestion pipeline (build step 3).
     ///
     /// Returns `Ok(n)` where `n` is the number of passages added.
@@ -154,16 +159,17 @@ mod tests {
             .await
             .unwrap();
         engine
-            .add_passage("book-b.epub", "p. 20", "pack my box with five dozen liquor jugs")
+            .add_passage(
+                "book-b.epub",
+                "p. 20",
+                "pack my box with five dozen liquor jugs",
+            )
             .await
             .unwrap();
 
         // Search with text equal to the first passage — FakeEmbedder is deterministic,
         // so the embedding will be identical and it should rank first.
-        let hits = engine
-            .search("the quick brown fox", 2)
-            .await
-            .unwrap();
+        let hits = engine.search("the quick brown fox", 2).await.unwrap();
 
         assert!(!hits.is_empty());
         assert_eq!(hits[0].source, "book-a.epub");
@@ -183,9 +189,21 @@ mod tests {
         let engine = Engine::with_parts(FakeEmbedder { dim: 768 }, store, 768);
 
         let passages = vec![
-            ("book-a.epub".to_string(), "p. 10".to_string(), "the quick brown fox".to_string()),
-            ("book-b.epub".to_string(), "p. 20".to_string(), "pack my box with five dozen liquor jugs".to_string()),
-            ("book-c.epub".to_string(), "p. 30".to_string(), "lazy dog".to_string()),
+            (
+                "book-a.epub".to_string(),
+                "p. 10".to_string(),
+                "the quick brown fox".to_string(),
+            ),
+            (
+                "book-b.epub".to_string(),
+                "p. 20".to_string(),
+                "pack my box with five dozen liquor jugs".to_string(),
+            ),
+            (
+                "book-c.epub".to_string(),
+                "p. 30".to_string(),
+                "lazy dog".to_string(),
+            ),
         ];
 
         let count = engine.add_passages(&passages).await.unwrap();

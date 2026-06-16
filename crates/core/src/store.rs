@@ -7,17 +7,17 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use arrow_array::{
-    RecordBatch,
-    array::ArrayRef,
-    builder::{FixedSizeListBuilder, Float32Builder, StringBuilder},
-};
 use arrow_array::cast::AsArray;
 use arrow_array::types::Float32Type;
+use arrow_array::{
+    array::ArrayRef,
+    builder::{FixedSizeListBuilder, Float32Builder, StringBuilder},
+    RecordBatch,
+};
 use arrow_schema::{DataType, Field, Fields, Schema};
 use futures::TryStreamExt;
-use lancedb::{Connection, DistanceType, Table};
 use lancedb::query::{ExecutableQuery, QueryBase};
+use lancedb::{Connection, DistanceType, Table};
 use serde::{Deserialize, Serialize};
 
 use crate::error::CoreError;
@@ -69,11 +69,7 @@ impl Store {
     ///
     /// If the table does not yet exist it is created empty with the correct
     /// schema. All LanceDB errors are mapped to `CoreError::StoreFailed`.
-    pub async fn open(
-        db_path: &Path,
-        table_name: &str,
-        dim: usize,
-    ) -> Result<Self, CoreError> {
+    pub async fn open(db_path: &Path, table_name: &str, dim: usize) -> Result<Self, CoreError> {
         let path = db_path
             .to_str()
             .ok_or_else(|| CoreError::StoreFailed("non-UTF-8 db_path".to_string()))?;
@@ -114,11 +110,7 @@ impl Store {
     /// Insert a batch of passages with their embedding vectors.
     ///
     /// Both slices must have equal length. Every vector must have length `dim`.
-    pub async fn add(
-        &self,
-        vectors: &[Vec<f32>],
-        passages: &[Passage],
-    ) -> Result<(), CoreError> {
+    pub async fn add(&self, vectors: &[Vec<f32>], passages: &[Passage]) -> Result<(), CoreError> {
         if vectors.len() != passages.len() {
             return Err(CoreError::StoreFailed(
                 "vectors and passages slices have different lengths".to_string(),
@@ -137,8 +129,7 @@ impl Store {
         let schema = schema(self.dim);
 
         // Build vector column (FixedSizeList<Float32>)
-        let mut vector_builder =
-            FixedSizeListBuilder::new(Float32Builder::new(), self.dim as i32);
+        let mut vector_builder = FixedSizeListBuilder::new(Float32Builder::new(), self.dim as i32);
         for v in vectors {
             for &f in v {
                 vector_builder.values().append_value(f);
@@ -181,11 +172,7 @@ impl Store {
     /// Search for the `k` passages nearest to `vector` using cosine distance.
     ///
     /// An empty table returns `Ok(vec![])` rather than an error.
-    pub async fn search(
-        &self,
-        vector: &[f32],
-        k: usize,
-    ) -> Result<Vec<(Passage, f32)>, CoreError> {
+    pub async fn search(&self, vector: &[f32], k: usize) -> Result<Vec<(Passage, f32)>, CoreError> {
         let table = self.table().await?;
 
         let row_count = table

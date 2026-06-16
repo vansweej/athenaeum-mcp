@@ -464,7 +464,6 @@ dependencies = [
  "clap",
  "epub",
  "pdfium-render",
- "regex",
  "serde",
  "tempfile",
  "thiserror",

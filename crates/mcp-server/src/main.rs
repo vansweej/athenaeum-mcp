@@ -1,16 +1,15 @@
 //! athenaeum-mcp-server — MCP server exposing search(query, k) over the personal library.
 
-use std::sync::Arc;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use athenaeum_core::{Config, Embedder, Engine};
 use athenaeum_ingest::ingest;
 use rmcp::{
-    ServerHandler, ServiceExt,
     handler::server::router::tool::ToolRouter,
     handler::server::wrapper::Parameters,
     model::{CallToolResult, Content, ServerCapabilities, ServerInfo},
-    tool, tool_handler, tool_router,
+    tool, tool_handler, tool_router, ServerHandler, ServiceExt,
 };
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -61,8 +60,8 @@ impl<E: Embedder + 'static> AthenaeumServer<E> {
             .await
             .map_err(|e| rmcp::ErrorData::internal_error(e.to_string(), None))?;
 
-        let json =
-            serde_json::to_string(&hits).map_err(|e| rmcp::ErrorData::internal_error(e.to_string(), None))?;
+        let json = serde_json::to_string(&hits)
+            .map_err(|e| rmcp::ErrorData::internal_error(e.to_string(), None))?;
 
         Ok(CallToolResult::success(vec![Content::text(json)]))
     }
@@ -87,10 +86,9 @@ impl<E: Embedder + 'static> AthenaeumServer<E> {
 #[tool_handler]
 impl<E: Embedder + 'static> ServerHandler for AthenaeumServer<E> {
     fn get_info(&self) -> ServerInfo {
-        ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
-            .with_instructions(
-                "Personal library semantic search over CS, FP, and computer-graphics books and papers.",
-            )
+        ServerInfo::new(ServerCapabilities::builder().enable_tools().build()).with_instructions(
+            "Personal library semantic search over CS, FP, and computer-graphics books and papers.",
+        )
     }
 }
 
@@ -99,7 +97,7 @@ impl<E: Embedder + 'static> ServerHandler for AthenaeumServer<E> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use athenaeum_core::{SearchHit, Store, embed::FakeEmbedder};
+    use athenaeum_core::{embed::FakeEmbedder, SearchHit, Store};
     use rmcp::model::RawContent;
 
     async fn seed(server: &AthenaeumServer<FakeEmbedder>) {
@@ -110,7 +108,11 @@ mod tests {
             .unwrap();
         server
             .engine
-            .add_passage("book-b.epub", "p. 2", "pack my box with five dozen liquor jugs")
+            .add_passage(
+                "book-b.epub",
+                "p. 2",
+                "pack my box with five dozen liquor jugs",
+            )
             .await
             .unwrap();
     }

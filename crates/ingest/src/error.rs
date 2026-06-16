@@ -1,5 +1,5 @@
-use thiserror::Error;
 use athenaeum_core::CoreError;
+use thiserror::Error;
 
 /// Errors produced by the athenaeum-ingest crate.
 #[derive(Debug, Error)]
@@ -30,12 +30,10 @@ impl From<athenaeum_core::CoreError> for IngestError {
             CoreError::EmptyInput => IngestError::ParseFailed("empty input".to_string()),
             CoreError::StoreFailed(msg) => IngestError::StoreFailed(msg),
             CoreError::EmbeddingFailed(msg) => IngestError::EmbedFailed(msg),
-            CoreError::DimensionMismatch { expected, actual } => {
-                IngestError::EmbedFailed(format!(
-                    "embedding dimension mismatch: expected {}, got {}",
-                    expected, actual
-                ))
-            }
+            CoreError::DimensionMismatch { expected, actual } => IngestError::EmbedFailed(format!(
+                "embedding dimension mismatch: expected {}, got {}",
+                expected, actual
+            )),
             CoreError::NotImplemented => IngestError::NotImplemented,
         }
     }

@@ -1,7 +1,7 @@
-use std::path::Path;
 use crate::error::IngestError;
-use pdfium_render::prelude::*;
 use epub::doc::EpubDoc;
+use pdfium_render::prelude::*;
+use std::path::Path;
 
 #[derive(Debug, Clone)]
 pub struct ExtractedDocument {
@@ -42,8 +42,7 @@ pub async fn extract_pdf(path: &Path) -> Result<ExtractedDocument, IngestError> 
             .map_err(|e| IngestError::ParseFailed(format!("failed to extract text: {}", e)))?
             .all();
 
-        if !text.trim().is_empty()
-        {
+        if !text.trim().is_empty() {
             pages.push(ExtractedPage {
                 page_number: (i + 1) as u32,
                 text,
@@ -59,9 +58,9 @@ pub async fn extract_pdf(path: &Path) -> Result<ExtractedDocument, IngestError> 
 }
 
 pub async fn extract_epub(path: &Path) -> Result<(String, Vec<EpubSection>), IngestError> {
-    let mut doc = EpubDoc::new(path.to_owned())
+    let mut doc = EpubDoc::new(path)
         .map_err(|e| IngestError::ParseFailed(format!("failed to open epub: {}", e)))?;
-    
+
     let title = doc
         .mdata("title")
         .map(|m| m.value.clone())
@@ -77,35 +76,31 @@ pub async fn extract_epub(path: &Path) -> Result<(String, Vec<EpubSection>), Ing
     let mut current_section: Option<String> = None;
 
     // Iterate through spine items
-    loop {
-        if let Some((content, _mime)) = doc.get_current_str() {
-            // Extract chapter from <h1> tags
-            if let Some(h1_text) = extract_heading(&content, "h1") {
-                current_chapter = Some(h1_text);
-                current_section = None; // Reset section when chapter changes
-            }
+    while let Some((content, _mime)) = doc.get_current_str() {
+        // Extract chapter from <h1> tags
+        if let Some(h1_text) = extract_heading(&content, "h1") {
+            current_chapter = Some(h1_text);
+            current_section = None; // Reset section when chapter changes
+        }
 
-            // Extract section from <h2> tags
-            if let Some(h2_text) = extract_heading(&content, "h2") {
-                current_section = Some(h2_text);
-            }
+        // Extract section from <h2> tags
+        if let Some(h2_text) = extract_heading(&content, "h2") {
+            current_section = Some(h2_text);
+        }
 
-            // Strip HTML tags to get plain text
-            let text = strip_html_tags(&content);
+        // Strip HTML tags to get plain text
+        let text = strip_html_tags(&content);
 
-            if !text.trim().is_empty() {
-                sections.push(EpubSection {
-                    chapter: current_chapter.clone(),
-                    section: current_section.clone(),
-                    text,
-                });
-            }
+        if !text.trim().is_empty() {
+            sections.push(EpubSection {
+                chapter: current_chapter.clone(),
+                section: current_section.clone(),
+                text,
+            });
+        }
 
-            // Move to next spine item
-            if !doc.go_next() {
-                break;
-            }
-        } else {
+        // Move to next spine item
+        if !doc.go_next() {
             break;
         }
     }
@@ -147,8 +142,5 @@ fn strip_html_tags(html: &str) -> String {
     }
 
     // Clean up whitespace
-    result
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
+    result.split_whitespace().collect::<Vec<_>>().join(" ")
 }
