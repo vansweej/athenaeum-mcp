@@ -13,8 +13,9 @@ use error::SpikeError;
 
 /// Extract all text from a PDF file using pdfium.
 ///
-/// Requires the pdfium dynamic library to be locatable via
-/// `PDFIUM_DYNAMIC_LIB_PATH` (set by the nix dev shell).
+/// Requires the pdfium dynamic library to be locatable via the OS dynamic
+/// linker search path (`LD_LIBRARY_PATH` on Linux, `DYLD_LIBRARY_PATH` on
+/// macOS), which the nix dev shell configures in its `shellHook`.
 ///
 /// # Errors
 /// Returns [`SpikeError::PdfFailed`] on any extraction error.

@@ -16,7 +16,6 @@ serde          = { workspace = true }
 pdfium-render  = { workspace = true }
 epub           = { workspace = true }
 tokio          = { workspace = true }
-regex          = "1"
 clap           = { version = "4", features = ["derive"] }
 anyhow         = { workspace = true }
 
