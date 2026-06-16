@@ -81,6 +81,20 @@ tests with a `tempdir` database path).
 
 No environment-variable overrides exist in this build step.
 
+## Documentation
+
+Start here for comprehensive guides:
+
+- **[architecture.md](docs/architecture.md)** — System overview with diagrams (container, crate map, data paths, schema).
+- **[setup.md](docs/setup.md)** — Installation, first run, troubleshooting, build commands.
+- **[ingestion.md](docs/ingestion.md)** — Detailed guide for corpus-scale ingestion; critical operational gotchas.
+- **[integration.md](docs/integration.md)** — Wiring the server into opencode agents (brainstorm, spar, planner).
+
+For historical context:
+
+- **[decision-brief.md](docs/decision-brief.md)** — Design decisions, scope, deferred features.
+- **[archive/](docs/archive/)** — Implementation records and prior documentation.
+
 ## Architecture decision records
 
 - [ADR-0001 — Rust over TypeScript + Bun](docs/adr/0001-language-rust-over-typescript.md)
