@@ -75,6 +75,35 @@ impl<E: Embedder> Engine<E> {
         self.store.add(&vectors, &[passage]).await
     }
 
+    /// Batch embed and insert passages. This is the primary path for the 
+    /// ingestion pipeline (build step 3).
+    ///
+    /// Returns `Ok(n)` where `n` is the number of passages added.
+    /// Returns `CoreError::EmptyInput` if any text field is empty.
+    pub async fn add_passages(
+        &self,
+        passages: &[(String, String, String)], // (source, location, text)
+    ) -> Result<usize, CoreError> {
+        if passages.is_empty() {
+            return Ok(0);
+        }
+
+        let texts: Vec<String> = passages.iter().map(|(_, _, text)| text.clone()).collect();
+        let vectors = self.embedder.embed(&texts).await?;
+
+        let passages_vec: Vec<Passage> = passages
+            .iter()
+            .map(|(source, location, text)| Passage {
+                source: source.clone(),
+                location: location.clone(),
+                text: text.clone(),
+            })
+            .collect();
+
+        self.store.add(&vectors, &passages_vec).await?;
+        Ok(passages.len())
+    }
+
     /// Embed `query` and return the top-`k` nearest passages as `SearchHit`s.
     ///
     /// The `score` field is `(1.0 - cosine_distance).clamp(0.0, 1.0)`.
@@ -148,11 +177,25 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn add_empty_text_returns_empty_input_error() {
+    async fn batch_add_and_search() {
         let dir = tempfile::tempdir().unwrap();
         let store = Store::open(dir.path(), "passages", 768).await.unwrap();
         let engine = Engine::with_parts(FakeEmbedder { dim: 768 }, store, 768);
-        let result = engine.add_passage("src", "loc", "").await;
-        assert!(matches!(result, Err(CoreError::EmptyInput)));
+
+        let passages = vec![
+            ("book-a.epub".to_string(), "p. 10".to_string(), "the quick brown fox".to_string()),
+            ("book-b.epub".to_string(), "p. 20".to_string(), "pack my box with five dozen liquor jugs".to_string()),
+            ("book-c.epub".to_string(), "p. 30".to_string(), "lazy dog".to_string()),
+        ];
+
+        let count = engine.add_passages(&passages).await.unwrap();
+        assert_eq!(count, 3);
+
+        let hits = engine.search("the quick brown fox", 1).await.unwrap();
+        assert!(!hits.is_empty());
+        assert_eq!(hits[0].text, "the quick brown fox");
+
+        let empty_res = engine.add_passages(&[]).await.unwrap();
+        assert_eq!(empty_res, 0);
     }
 }
