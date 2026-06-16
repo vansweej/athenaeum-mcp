@@ -32,25 +32,24 @@
           ];
 
           buildInputs = [
-            # TODO: confirm pdfium derivation name — pdfium-binaries is the nixpkgs
-            # attribute as of June 2026; verify with `nix search nixpkgs pdfium` if
-            # the build fails to locate the dynamic library.
             pkgs.pdfium-binaries   # native shared library for pdfium-render
           ];
 
           env = {
             RUST_BACKTRACE = "1";
-
-            # Tell pdfium-render where to find the dynamic library at runtime.
-            PDFIUM_DYNAMIC_LIB_PATH =
-              if pkgs.stdenv.isDarwin
-              then "${pkgs.pdfium-binaries}/lib/libpdfium.dylib"
-              else "${pkgs.pdfium-binaries}/lib/libpdfium.so";
-          } // pkgs.lib.optionalAttrs pkgs.stdenv.isDarwin {
-            # Extend the macOS dynamic linker search path so the pdfium shared
-            # library is found at runtime without a full reinstall.
-            DYLD_LIBRARY_PATH = "${pkgs.pdfium-binaries}/lib";
           };
+
+          # pdfium-render's `Pdfium::default()` resolves libpdfium through the OS
+          # dynamic-linker search path (it does NOT read any custom env var), so the
+          # loader path must include the pdfium-binaries lib directory. Append rather
+          # than clobber any value the caller already exported.
+          shellHook =
+            let libDir = "${pkgs.pdfium-binaries}/lib";
+            in if pkgs.stdenv.isDarwin then ''
+              export DYLD_LIBRARY_PATH="${libDir}''${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
+            '' else ''
+              export LD_LIBRARY_PATH="${libDir}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+            '';
         };
       }
     );
