@@ -412,6 +412,7 @@ dependencies = [
  "athenaeum-core",
  "epub",
  "pdfium-render",
+ "regex",
  "serde",
  "tempfile",
  "thiserror",

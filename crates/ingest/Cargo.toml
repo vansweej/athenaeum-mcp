@@ -12,6 +12,7 @@ serde          = { workspace = true }
 pdfium-render  = { workspace = true }
 epub           = { workspace = true }
 tokio          = { workspace = true }
+regex          = "1"
 
 [dev-dependencies]
 tokio    = { workspace = true }
