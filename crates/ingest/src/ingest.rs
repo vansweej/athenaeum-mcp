@@ -146,8 +146,6 @@ async fn ingest_epub(path: &Path) -> Result<Vec<Chunk>, IngestError> {
 mod tests {
     use std::path::Path;
 
-    use super::*;
-
     #[tokio::test]
     async fn ingest_unsupported_file_type() {
         // This test can't actually call ingest without an Engine,

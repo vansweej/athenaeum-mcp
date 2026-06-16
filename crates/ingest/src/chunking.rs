@@ -1,5 +1,3 @@
-use regex::Regex;
-
 /// Configuration for text chunking
 #[derive(Debug, Clone)]
 pub struct ChunkingConfig {
@@ -31,7 +29,7 @@ pub struct TextChunk {
 /// Chunk text at sentence boundaries with overlap
 ///
 /// This function:
-/// 1. Splits text into sentences using regex
+/// 1. Splits text into sentences using simple string matching
 /// 2. Groups sentences into chunks targeting min_tokens to max_tokens
 /// 3. Adds overlap between chunks
 /// 4. Uses whitespace word count (1 word ≈ 1.3 tokens)
@@ -40,7 +38,7 @@ pub fn chunk_text(text: &str, config: ChunkingConfig) -> Vec<TextChunk> {
         return Vec::new();
     }
 
-    // Split into sentences using regex
+    // Split into sentences using simple string matching
     let sentences = split_into_sentences(text);
     if sentences.is_empty() {
         return Vec::new();
@@ -87,32 +85,53 @@ pub fn chunk_text(text: &str, config: ChunkingConfig) -> Vec<TextChunk> {
     chunks
 }
 
-/// Split text into sentences using regex
+/// Split text into sentences using simple string matching
+/// Splits on sentence-ending punctuation (. ! ?) followed by whitespace and uppercase letter,
+/// or at the end of the string.
 fn split_into_sentences(text: &str) -> Vec<String> {
-    // Match sentence boundaries: period, question mark, exclamation mark followed by space or end of string
-    let sentence_regex = Regex::new(r"(?<=[.!?])\s+(?=[A-Z])|(?<=[.!?])$").unwrap();
-
     let mut sentences = Vec::new();
     let mut current_sentence = String::new();
+    let mut chars = text.chars().peekable();
 
-    for part in sentence_regex.split(text) {
-        if !part.is_empty() {
-            if !current_sentence.is_empty() {
-                current_sentence.push(' ');
+    while let Some(ch) = chars.next() {
+        current_sentence.push(ch);
+
+        // Check if this is a sentence-ending punctuation
+        if ch == '.' || ch == '!' || ch == '?' {
+            // Look ahead to see if we should end the sentence
+            let mut should_end = false;
+
+            if chars.peek().is_none() {
+                // End of text
+                should_end = true;
+            } else if chars.peek() == Some(&' ') {
+                // Peek further to see if there's an uppercase letter after the space
+                let mut temp_chars = chars.clone();
+                temp_chars.next(); // skip the space
+
+                if let Some(&next_ch) = temp_chars.peek() {
+                    if next_ch.is_uppercase() || next_ch == '\n' {
+                        should_end = true;
+                        // Consume the space
+                        chars.next();
+                    }
+                }
             }
-            current_sentence.push_str(part);
 
-            // Check if this part ends with sentence-ending punctuation
-            if part.ends_with('.') || part.ends_with('!') || part.ends_with('?') {
-                sentences.push(current_sentence.trim().to_string());
+            if should_end {
+                let trimmed = current_sentence.trim().to_string();
+                if !trimmed.is_empty() {
+                    sentences.push(trimmed);
+                }
                 current_sentence.clear();
             }
         }
     }
 
     // Add any remaining text as a sentence
-    if !current_sentence.is_empty() {
-        sentences.push(current_sentence.trim().to_string());
+    let trimmed = current_sentence.trim().to_string();
+    if !trimmed.is_empty() {
+        sentences.push(trimmed);
     }
 
     sentences
@@ -167,5 +186,15 @@ mod tests {
     fn test_empty_text() {
         let chunks = chunk_text("", ChunkingConfig::default());
         assert!(chunks.is_empty());
+    }
+
+    #[test]
+    fn test_split_into_sentences() {
+        let text = "First sentence. Second sentence! Third sentence?";
+        let sentences = split_into_sentences(text);
+        assert_eq!(sentences.len(), 3);
+        assert_eq!(sentences[0], "First sentence.");
+        assert_eq!(sentences[1], "Second sentence!");
+        assert_eq!(sentences[2], "Third sentence?");
     }
 }
