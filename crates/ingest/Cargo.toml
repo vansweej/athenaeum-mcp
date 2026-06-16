@@ -5,6 +5,10 @@ edition.workspace     = true
 license.workspace     = true
 rust-version.workspace = true
 
+[[bin]]
+name = "athenaeum-ingest"
+path = "src/bin/athenaeum-ingest.rs"
+
 [dependencies]
 athenaeum-core = { path = "../core" }
 thiserror      = { workspace = true }
@@ -13,6 +17,8 @@ pdfium-render  = { workspace = true }
 epub           = { workspace = true }
 tokio          = { workspace = true }
 regex          = "1"
+clap           = { version = "4", features = ["derive"] }
+anyhow         = { workspace = true }
 
 [dev-dependencies]
 tokio    = { workspace = true }
