@@ -19,7 +19,7 @@ pub struct Chunk {
 }
 
 /// Summary returned after a successful ingestion run.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IngestSummary {
     pub documents: usize,
     pub chunks:    usize,

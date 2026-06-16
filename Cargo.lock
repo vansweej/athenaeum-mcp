@@ -425,6 +425,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "athenaeum-core",
+ "athenaeum-ingest",
  "rmcp",
  "schemars 1.2.1",
  "serde",

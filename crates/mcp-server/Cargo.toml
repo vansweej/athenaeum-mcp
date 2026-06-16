@@ -11,6 +11,7 @@ path = "src/main.rs"
 
 [dependencies]
 athenaeum-core = { path = "../core" }
+athenaeum-ingest = { path = "../ingest" }
 tokio          = { workspace = true }
 rmcp           = { workspace = true }
 thiserror      = { workspace = true }

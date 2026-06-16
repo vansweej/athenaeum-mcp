@@ -1,8 +1,10 @@
 //! athenaeum-mcp-server — MCP server exposing search(query, k) over the personal library.
 
 use std::sync::Arc;
+use std::path::PathBuf;
 
 use athenaeum_core::{Config, Embedder, Engine};
+use athenaeum_ingest::ingest;
 use rmcp::{
     ServerHandler, ServiceExt,
     handler::server::router::tool::ToolRouter,
@@ -21,6 +23,12 @@ struct SearchArgs {
     query: String,
     /// Maximum number of passages to return.
     k: usize,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+struct IngestArgs {
+    /// Path to the PDF or EPUB file to ingest.
+    path: String,
 }
 
 // ─── Server struct ────────────────────────────────────────────────────────────
@@ -55,6 +63,22 @@ impl<E: Embedder + 'static> AthenaeumServer<E> {
 
         let json =
             serde_json::to_string(&hits).map_err(|e| rmcp::ErrorData::internal_error(e.to_string(), None))?;
+
+        Ok(CallToolResult::success(vec![Content::text(json)]))
+    }
+
+    #[tool(description = "Ingest a PDF or EPUB file into the personal library")]
+    async fn ingest_file(
+        &self,
+        Parameters(IngestArgs { path }): Parameters<IngestArgs>,
+    ) -> Result<CallToolResult, rmcp::ErrorData> {
+        let path_buf = PathBuf::from(&path);
+        let summary = ingest(&self.engine, &path_buf)
+            .await
+            .map_err(|e| rmcp::ErrorData::internal_error(e.to_string(), None))?;
+
+        let json = serde_json::to_string(&summary)
+            .map_err(|e| rmcp::ErrorData::internal_error(e.to_string(), None))?;
 
         Ok(CallToolResult::success(vec![Content::text(json)]))
     }
