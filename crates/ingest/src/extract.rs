@@ -78,7 +78,7 @@ pub async fn extract_epub(path: &Path) -> Result<(String, Vec<EpubSection>), Ing
 
     // Iterate through spine items
     loop {
-        if let Some((_, content)) = doc.get_current_str() {
+        if let Some((content, _mime)) = doc.get_current_str() {
             // Extract chapter from <h1> tags
             if let Some(h1_text) = extract_heading(&content, "h1") {
                 current_chapter = Some(h1_text);
