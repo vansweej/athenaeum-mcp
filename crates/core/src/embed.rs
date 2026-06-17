@@ -3,9 +3,12 @@
 //! The `Embedder` trait lets tests inject a deterministic `FakeEmbedder`
 //! without a live Ollama instance.
 
+use std::time::Duration;
+
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
+use crate::config::{DEFAULT_EMBED_CONNECT_TIMEOUT, DEFAULT_EMBED_TIMEOUT};
 use crate::error::CoreError;
 
 /// Produce dense embeddings for a slice of input strings.
@@ -48,9 +51,41 @@ pub struct OllamaEmbedder {
 impl OllamaEmbedder {
     /// Create a new embedder pointing at the given Ollama `url` (no trailing
     /// slash), using the specified `model` and expected vector `dim`.
+    ///
+    /// Uses the crate default timeouts (`DEFAULT_EMBED_TIMEOUT` /
+    /// `DEFAULT_EMBED_CONNECT_TIMEOUT`), which also back `Config`.
     pub fn new(url: impl Into<String>, model: impl Into<String>, dim: usize) -> Self {
+        Self::with_timeouts(
+            url,
+            model,
+            dim,
+            DEFAULT_EMBED_TIMEOUT,
+            DEFAULT_EMBED_CONNECT_TIMEOUT,
+        )
+    }
+
+    /// Create a new embedder with explicit request and connect timeouts.
+    ///
+    /// `timeout` is the total deadline for the HTTP request (including the
+    /// response body). `connect_timeout` is the TCP connect deadline.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `reqwest` fails to initialise its TLS backend — this is an
+    /// environment fault, not a runtime condition.
+    pub fn with_timeouts(
+        url: impl Into<String>,
+        model: impl Into<String>,
+        dim: usize,
+        timeout: Duration,
+        connect_timeout: Duration,
+    ) -> Self {
         Self {
-            client: reqwest::Client::new(),
+            client: reqwest::Client::builder()
+                .connect_timeout(connect_timeout)
+                .timeout(timeout)
+                .build()
+                .expect("failed to build reqwest client"),
             url: url.into(),
             model: model.into(),
             dim,
