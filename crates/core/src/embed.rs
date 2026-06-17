@@ -410,6 +410,45 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn ollama_embedder_times_out_on_slow_response() {
+        use std::time::Duration;
+        use wiremock::{
+            matchers::{method, path},
+            Mock, MockServer, ResponseTemplate,
+        };
+
+        let mock_server = MockServer::start().await;
+
+        // Valid 4-dimensional body, but delayed by 2 s.
+        let response_body = serde_json::json!({
+            "embeddings": [[0.1, 0.2, 0.3, 0.4]]
+        });
+
+        Mock::given(method("POST"))
+            .and(path("/api/embed"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(&response_body)
+                    .set_delay(Duration::from_secs(2)),
+            )
+            .mount(&mock_server)
+            .await;
+
+        let embedder = OllamaEmbedder::with_timeouts(
+            mock_server.uri(),
+            "test-model",
+            4,
+            Duration::from_millis(200), // request timeout well under 2 s delay
+            Duration::from_secs(5),
+        );
+        let result = embedder.embed(&["hello".to_string()]).await;
+        assert!(
+            matches!(result, Err(CoreError::Http(_))),
+            "expected Http error, got {result:?}"
+        );
+    }
+
+    #[tokio::test]
     async fn failing_embedder_fails_on_nth_call() {
         let embedder = FailingEmbedder::new(4, 2);
 
