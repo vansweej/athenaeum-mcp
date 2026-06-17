@@ -2,10 +2,9 @@
 
 use anyhow::{Context, Result};
 use athenaeum_core::{Config, Engine};
-use athenaeum_ingest::ingest;
+use athenaeum_ingest::{discover_documents, ingest};
 use clap::Parser;
-use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
 #[command(name = "athenaeum-ingest")]
@@ -24,6 +23,7 @@ struct Args {
     verbose: bool,
 }
 
+#[cfg(not(tarpaulin_include))]
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
@@ -40,7 +40,8 @@ async fn main() -> Result<()> {
         .context("Failed to initialize search engine")?;
 
     // Collect files to ingest
-    let files = collect_files(&args.directory, args.recursive)?;
+    let files = discover_documents(&args.directory, args.recursive)
+        .context("Failed to discover documents")?;
 
     if files.is_empty() {
         println!("No PDF or EPUB files found in {}", args.directory.display());
@@ -102,35 +103,4 @@ async fn main() -> Result<()> {
     }
 
     Ok(())
-}
-
-/// Collect all PDF and EPUB files from the given directory.
-fn collect_files(dir: &Path, recursive: bool) -> Result<Vec<PathBuf>> {
-    let mut files = Vec::new();
-
-    let entries = fs::read_dir(dir).context("Failed to read directory")?;
-
-    for entry in entries {
-        let entry = entry.context("Failed to read directory entry")?;
-        let path = entry.path();
-
-        if path.is_file() {
-            if let Some(ext) = path.extension() {
-                if let Some(ext_str) = ext.to_str() {
-                    let ext_lower = ext_str.to_lowercase();
-                    if ext_lower == "pdf" || ext_lower == "epub" {
-                        files.push(path);
-                    }
-                }
-            }
-        } else if path.is_dir() && recursive {
-            let mut subdir_files = collect_files(&path, recursive)?;
-            files.append(&mut subdir_files);
-        }
-    }
-
-    // Sort files for consistent ordering
-    files.sort();
-
-    Ok(files)
 }

@@ -38,3 +38,41 @@ impl From<athenaeum_core::CoreError> for IngestError {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use athenaeum_core::CoreError;
+
+    #[test]
+    fn from_core_error_maps_all_variants() {
+        // CoreError::Http → IngestError::EmbedFailed
+        let err: IngestError = CoreError::Http("timeout".into()).into();
+        assert!(matches!(err, IngestError::EmbedFailed(_)));
+
+        // CoreError::EmptyInput → IngestError::ParseFailed
+        let err: IngestError = CoreError::EmptyInput.into();
+        assert!(matches!(err, IngestError::ParseFailed(_)));
+
+        // CoreError::StoreFailed → IngestError::StoreFailed
+        let err: IngestError = CoreError::StoreFailed("disk full".into()).into();
+        assert!(matches!(err, IngestError::StoreFailed(_)));
+
+        // CoreError::EmbeddingFailed → IngestError::EmbedFailed
+        let err: IngestError = CoreError::EmbeddingFailed("model error".into()).into();
+        assert!(matches!(err, IngestError::EmbedFailed(_)));
+
+        // CoreError::DimensionMismatch → IngestError::EmbedFailed with formatted message
+        let err: IngestError = CoreError::DimensionMismatch {
+            expected: 768,
+            actual: 4,
+        }
+        .into();
+        assert!(matches!(err, IngestError::EmbedFailed(_)));
+        assert!(err.to_string().contains("768"));
+
+        // CoreError::NotImplemented → IngestError::NotImplemented
+        let err: IngestError = CoreError::NotImplemented.into();
+        assert!(matches!(err, IngestError::NotImplemented));
+    }
+}

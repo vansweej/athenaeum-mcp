@@ -31,8 +31,10 @@ pub struct IngestSummary {
 /// 1. Determines file type (PDF or EPUB) from the file extension
 /// 2. Extracts text and metadata using the appropriate extractor
 /// 3. Chunks the extracted text at sentence boundaries with overlap
-/// 4. Converts chunks to (source, location, text) tuples for batch insertion
-/// 5. Calls `engine.add_passages()` to insert into LanceDB
+/// 4. Converts chunks to (source, location, text) tuples for insertion
+/// 5. Calls `engine.upsert_passages()` to insert into LanceDB (dedup-aware upsert
+///    keyed on the canonicalized absolute path as `doc_id`; re-ingesting a file
+///    replaces prior chunks)
 ///
 /// # Errors
 /// Returns [`IngestError`] if file type is unsupported, extraction fails, the document is empty,
@@ -41,6 +43,12 @@ pub async fn ingest<E: Embedder>(
     engine: &Engine<E>,
     path: &Path,
 ) -> Result<IngestSummary, IngestError> {
+    let doc_id = path
+        .canonicalize()
+        .map_err(|e| IngestError::IoFailed(e.to_string()))?
+        .to_string_lossy()
+        .into_owned();
+
     let extension = path
         .extension()
         .and_then(|ext| ext.to_str())
@@ -62,25 +70,7 @@ pub async fn ingest<E: Embedder>(
     let passages: Vec<(String, String, String)> = chunks
         .iter()
         .map(|chunk| {
-            let location = if let Some(page) = chunk.page {
-                format!("page {}", page)
-            } else {
-                let mut loc = String::new();
-                if let Some(ref chapter) = chunk.chapter {
-                    loc.push_str(chapter);
-                }
-                if let Some(ref section) = chunk.section {
-                    if !loc.is_empty() {
-                        loc.push_str(" > ");
-                    }
-                    loc.push_str(section);
-                }
-                if loc.is_empty() {
-                    "unknown".to_string()
-                } else {
-                    loc
-                }
-            };
+            let location = format_location(chunk);
 
             (chunk.title.clone(), location, chunk.text.clone())
         })
@@ -88,9 +78,9 @@ pub async fn ingest<E: Embedder>(
 
     let chunk_count = passages.len();
 
-    // Insert chunks into the vector store
+    // Insert chunks into the vector store (dedup-aware upsert by doc_id)
     engine
-        .add_passages(&passages)
+        .upsert_passages(&doc_id, &passages)
         .await
         .map_err(IngestError::from)?;
 
@@ -144,8 +134,35 @@ async fn ingest_epub(path: &Path) -> Result<Vec<Chunk>, IngestError> {
     Ok(chunks)
 }
 
+/// Format a human-readable location string from a chunk's metadata.
+///
+/// Returns `"page N"` when `page` is set; otherwise formats
+/// `"chapter > section"`, `"chapter"`, `"section"`, or `"unknown"`.
+fn format_location(chunk: &Chunk) -> String {
+    if let Some(page) = chunk.page {
+        format!("page {}", page)
+    } else {
+        let mut loc = String::new();
+        if let Some(ref chapter) = chunk.chapter {
+            loc.push_str(chapter);
+        }
+        if let Some(ref section) = chunk.section {
+            if !loc.is_empty() {
+                loc.push_str(" > ");
+            }
+            loc.push_str(section);
+        }
+        if loc.is_empty() {
+            "unknown".to_string()
+        } else {
+            loc
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use super::*;
     use std::path::Path;
 
     #[tokio::test]
@@ -166,5 +183,65 @@ mod tests {
         let path = Path::new("testfile");
         let extension = path.extension();
         assert!(extension.is_none());
+    }
+
+    #[test]
+    fn format_location_page_only() {
+        let chunk = Chunk {
+            title: "Test".into(),
+            chapter: None,
+            section: None,
+            page: Some(42),
+            text: "content".into(),
+        };
+        assert_eq!(format_location(&chunk), "page 42");
+    }
+
+    #[test]
+    fn format_location_chapter_and_section() {
+        let chunk = Chunk {
+            title: "Test".into(),
+            chapter: Some("Chapter 1".into()),
+            section: Some("Section A".into()),
+            page: None,
+            text: "content".into(),
+        };
+        assert_eq!(format_location(&chunk), "Chapter 1 > Section A");
+    }
+
+    #[test]
+    fn format_location_chapter_only() {
+        let chunk = Chunk {
+            title: "Test".into(),
+            chapter: Some("Chapter 1".into()),
+            section: None,
+            page: None,
+            text: "content".into(),
+        };
+        assert_eq!(format_location(&chunk), "Chapter 1");
+    }
+
+    #[test]
+    fn format_location_section_only() {
+        let chunk = Chunk {
+            title: "Test".into(),
+            chapter: None,
+            section: Some("Appendix".into()),
+            page: None,
+            text: "content".into(),
+        };
+        assert_eq!(format_location(&chunk), "Appendix");
+    }
+
+    #[test]
+    fn format_location_none_returns_unknown() {
+        let chunk = Chunk {
+            title: "Test".into(),
+            chapter: None,
+            section: None,
+            page: None,
+            text: "content".into(),
+        };
+        assert_eq!(format_location(&chunk), "unknown");
     }
 }

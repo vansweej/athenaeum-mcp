@@ -40,5 +40,8 @@ async-trait  = "0.1"
 pdfium-render = { version = "0.9", features = ["thread_safe", "pdfium_latest"] }   # latest: 0.9.2
 epub          = "2"                                         # latest: 2.1.5
 
+# TOML parsing (relevance-eval)
+toml         = "0.8"
+
 # Testing
 tempfile     = "3"

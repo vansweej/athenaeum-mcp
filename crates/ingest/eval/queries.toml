@@ -1,0 +1,63 @@
+# Relevance evaluation queries for athenaeum-mcp.
+#
+# INSTRUCTIONS FOR THE HUMAN GRADER:
+# 1. Write queries BEFORE re-reading the corpus. The 5–6 year gap since last
+#    reading is the only defense against "teaching to the test." Re-reading to
+#    write queries would undo this defense.
+# 2. "hit" queries expect a relevant passage in top-k (k defaults to 5).
+# 3. "miss" queries deliberately ask something NOT in either book. They test
+#    whether the system confidently lies (a high-score irrelevant hit) or
+#    correctly returns only low-score / no hits. A confident lie on a "miss"
+#    query is a demo-killer.
+# 4. Replace the placeholder "text" and "note" values with your real queries.
+# 5. After running eval, record the verdict (Green/Yellow/Red) in the run notes.
+
+[[query]]
+text = "TODO: write a cold-domain question expecting a HIT"
+expect = "hit"
+note = "Replace this. What would a colleague ask about this domain, phrased in everyday vocabulary, NOT the book's chapter titles?"
+
+[[query]]
+text = "TODO: write a second HIT query"
+expect = "hit"
+note = "Write this before re-reading any of the corpus books."
+
+[[query]]
+text = "TODO: write a third HIT query"
+expect = "hit"
+note = "These should be in your own words from memory of the domain, not the text."
+
+[[query]]
+text = "TODO: write a fourth HIT query"
+expect = "hit"
+note = "Try to phrase it differently than how you think the book phrases it."
+
+[[query]]
+text = "TODO: write a fifth HIT query"
+expect = "hit"
+note = "A query about a specific concept you recall existing in the corpus."
+
+[[query]]
+text = "TODO: write a sixth HIT query"
+expect = "hit"
+note = "Another real question a knowledgeable practitioner might ask."
+
+[[query]]
+text = "TODO: write a seventh HIT query"
+expect = "hit"
+note = "Vary the vocabulary — use synonyms the book likely doesn't use."
+
+[[query]]
+text = "TODO: write an eighth HIT query"
+expect = "hit"
+note = "A query that might have an answer spanning multiple chapters or sections."
+
+[[query]]
+text = "TODO: write a MISS query — something NOT in either book"
+expect = "miss"
+note = "This deliberately tests whether search confidently lies on an unanswerable question. Choose something you're CERTAIN is outside both books' scope. If a hit scores >0.7 on this, that's the demo-killer."
+
+[[query]]
+text = "TODO: write a second MISS query"
+expect = "miss"
+note = "Another out-of-scope question. Both miss queries should have no relevant results at all, or very low scores."

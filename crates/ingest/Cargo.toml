@@ -9,6 +9,10 @@ rust-version.workspace = true
 name = "athenaeum-ingest"
 path = "src/bin/athenaeum-ingest.rs"
 
+[[bin]]
+name = "relevance-eval"
+path = "src/bin/relevance-eval.rs"
+
 [dependencies]
 athenaeum-core = { path = "../core" }
 thiserror      = { workspace = true }
@@ -18,7 +22,12 @@ epub           = { workspace = true }
 tokio          = { workspace = true }
 clap           = { version = "4", features = ["derive"] }
 anyhow         = { workspace = true }
+toml           = { workspace = true }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tarpaulin_include)'] }
 
 [dev-dependencies]
-tokio    = { workspace = true }
-tempfile = { workspace = true }
+athenaeum-core = { path = "../core", features = ["test-support"] }
+tokio          = { workspace = true }
+tempfile       = { workspace = true }

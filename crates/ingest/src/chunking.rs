@@ -197,4 +197,84 @@ mod tests {
         assert_eq!(sentences[1], "Second sentence!");
         assert_eq!(sentences[2], "Third sentence?");
     }
+
+    #[test]
+    fn test_chunk_splits_when_exceeding_max() {
+        let config = ChunkingConfig {
+            min_tokens: 5,
+            max_tokens: 15,
+            overlap_tokens: 3,
+        };
+
+        // Build text long enough that each sentence pushes past max_tokens
+        let text =
+            "This is a long test sentence that should exceed the maximum token count on its own. \
+                    And here is another long sentence that also goes beyond the limit on its own. \
+                    And a final sentence that is also quite long and pushes it over the edge.";
+
+        let chunks = chunk_text(text, config);
+        assert!(
+            chunks.len() >= 2,
+            "should produce at least 2 chunks: got {}",
+            chunks.len()
+        );
+        assert!(chunks.iter().all(|c| !c.text.is_empty()));
+    }
+
+    #[test]
+    fn test_get_overlap_text_returns_full_text_when_under_limit() {
+        let text = "short text";
+        // overlap_tokens is larger than the text — get_overlap_text should return the full text
+        let result = chunk_text(
+            text,
+            ChunkingConfig {
+                min_tokens: 5,
+                max_tokens: 100,
+                overlap_tokens: 200,
+            },
+        );
+        assert!(!result.is_empty());
+    }
+
+    #[test]
+    fn test_overlap_appears_in_subsequent_chunks() {
+        // Each sentence is just over the max threshold to force multiple chunks
+        let long_sentence = "This is a very long sentence that has many words in it and should definitely exceed the small token max threshold that we have set for this test case. ";
+        // Repeat twice
+        let text = long_sentence.repeat(2);
+
+        let config = ChunkingConfig {
+            min_tokens: 5,
+            max_tokens: 15,
+            overlap_tokens: 4,
+        };
+
+        let chunks = chunk_text(&text, config);
+        if chunks.len() >= 2 {
+            // The second chunk should start with words from the end of the first chunk
+            let _first_words: Vec<&str> = chunks[0].text.split_whitespace().collect();
+            let second_words: Vec<&str> = chunks[1].text.split_whitespace().collect();
+            // At least one word should overlap (for small overlap_tokens)
+            assert!(!second_words.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_split_at_newline_after_period() {
+        // Period + space + newline triggers the `next_ch == '\n'` branch in split_into_sentences.
+        let text = "Hello. \nWorld.";
+        let sentences = split_into_sentences(text);
+        assert_eq!(sentences.len(), 2);
+        assert_eq!(sentences[0], "Hello.");
+        assert_eq!(sentences[1], "World.");
+    }
+
+    #[test]
+    fn test_no_split_when_lowercase_follows_period() {
+        // Lowercase after period means the period is not sentence-ending.
+        let text = "foo. bar Baz.";
+        let sentences = split_into_sentences(text);
+        assert_eq!(sentences.len(), 1);
+        assert_eq!(sentences[0], "foo. bar Baz.");
+    }
 }

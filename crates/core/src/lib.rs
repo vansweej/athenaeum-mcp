@@ -1,5 +1,6 @@
 //! `athenaeum-core` — Ollama embedding, LanceDB storage, and the
-//! `search(query, k)` / `add_passage` core used by the MCP server.
+//! `search(query, k)` / `upsert_passages` core used by the MCP server and
+//! the ingestion pipeline.
 
 pub mod config;
 pub mod embed;

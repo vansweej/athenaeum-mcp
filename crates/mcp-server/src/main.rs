@@ -103,15 +103,25 @@ mod tests {
     async fn seed(server: &AthenaeumServer<FakeEmbedder>) {
         server
             .engine
-            .add_passage("book-a.epub", "p. 1", "the quick brown fox")
+            .upsert_passages(
+                "book-a.epub",
+                &[(
+                    "book-a.epub".to_string(),
+                    "p. 1".to_string(),
+                    "the quick brown fox".to_string(),
+                )],
+            )
             .await
             .unwrap();
         server
             .engine
-            .add_passage(
+            .upsert_passages(
                 "book-b.epub",
-                "p. 2",
-                "pack my box with five dozen liquor jugs",
+                &[(
+                    "book-b.epub".to_string(),
+                    "p. 2".to_string(),
+                    "pack my box with five dozen liquor jugs".to_string(),
+                )],
             )
             .await
             .unwrap();
@@ -165,10 +175,68 @@ mod tests {
 
         assert!(result.is_err());
     }
+
+    #[tokio::test]
+    async fn ingest_file_tool_returns_summary_json() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::open(dir.path(), "passages", 768).await.unwrap();
+        let engine = Engine::with_parts(FakeEmbedder { dim: 768 }, store, 768);
+        let server = AthenaeumServer::new(engine);
+
+        let result = server
+            .ingest_file(Parameters(IngestArgs {
+                path: "../parser-spike/tests/fixtures/sample.epub".to_string(),
+            }))
+            .await;
+
+        let ok = result.expect("ingest_file should succeed");
+        let text = match &ok.content[0].raw {
+            RawContent::Text(t) => &t.text,
+            _ => panic!("expected text content"),
+        };
+        let summary: athenaeum_ingest::IngestSummary = serde_json::from_str(text).unwrap();
+        assert_eq!(summary.documents, 1);
+        assert!(summary.chunks > 0);
+    }
+
+    #[tokio::test]
+    async fn ingest_file_tool_error_on_bad_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::open(dir.path(), "passages", 768).await.unwrap();
+        let engine = Engine::with_parts(FakeEmbedder { dim: 768 }, store, 768);
+        let server = AthenaeumServer::new(engine);
+
+        let result = server
+            .ingest_file(Parameters(IngestArgs {
+                path: "/nonexistent/file.epub".to_string(),
+            }))
+            .await;
+
+        assert!(result.is_err(), "expected error for non-existent path");
+    }
+
+    #[tokio::test]
+    async fn get_info_advertises_tools() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::open(dir.path(), "passages", 768).await.unwrap();
+        let engine = Engine::with_parts(FakeEmbedder { dim: 768 }, store, 768);
+        let server = AthenaeumServer::new(engine);
+
+        let info = server.get_info();
+        assert!(
+            info.capabilities.tools.is_some(),
+            "tools capability must be advertised"
+        );
+        assert!(
+            info.instructions.as_ref().is_some_and(|s| !s.is_empty()),
+            "instructions must be present and non-empty"
+        );
+    }
 }
 
 // ─── Entry point ─────────────────────────────────────────────────────────────
 
+#[cfg(not(tarpaulin_include))]
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let engine = Engine::new(Config::default()).await?;

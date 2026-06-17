@@ -15,6 +15,43 @@ Detailed guidance for ingesting a considerable library of PDF and EPUB files int
 
 ---
 
+## Document dedup via upsert (since v0.2)
+
+Ingestion is now dedup-aware. When you re-ingest a file, its prior chunks are
+replaced rather than duplicated. This is a document-level upsert (delete-then-add)
+keyed on `doc_id` — the canonicalized absolute file path.
+
+```mermaid
+flowchart TD
+    A[ingest file] --> B[canonicalize path = doc_id]
+    B --> C[extract + chunk]
+    C --> D[embed chunks]
+    D --> E["upsert_doc(doc_id)"]
+    E --> F["DELETE WHERE doc_id = sql_quote(path)"]
+    F --> G["add(vectors, passages)"]
+    G --> H[(LanceDB table)]
+```
+
+The delete predicate is SQL-quoted (`'` → `''`) so paths containing apostrophes
+(e.g. `O'Reilly - SICP.pdf`) are safe. The chunking logic (`chunking.rs`) is
+unchanged — upsert replaces the storage layer only.
+
+### Schema change (v0.2)
+
+A `doc_id` column was added to the LanceDB schema (breaking change). If you
+have an existing `./data/athenaeum` store from a prior version, delete it
+before running the new binary:
+
+```bash
+rm -rf ./data/athenaeum
+```
+
+Then re-ingest your corpus. This is a one-time migration; subsequent ingests
+will use the upsert path and re-ingestion of the same file will replace its
+prior chunks rather than duplicate them.
+
+---
+
 ## Supported Formats & Extraction Behavior
 
 ### PDF Files

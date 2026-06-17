@@ -22,6 +22,7 @@ pub struct EpubSection {
     pub text: String,
 }
 
+#[cfg(not(tarpaulin_include))]
 pub async fn extract_pdf(path: &Path) -> Result<ExtractedDocument, IngestError> {
     let pdfium = Pdfium::default();
     let document = pdfium
@@ -143,4 +144,50 @@ fn strip_html_tags(html: &str) -> String {
 
     // Clean up whitespace
     result.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extract_heading_returns_none_for_no_match() {
+        let html = "<p>no headings here</p>";
+        assert!(extract_heading(html, "h1").is_none());
+        assert!(extract_heading(html, "h2").is_none());
+    }
+
+    #[test]
+    fn extract_heading_finds_h1() {
+        let html = "<h1>Chapter One</h1><p>content</p>";
+        assert_eq!(extract_heading(html, "h1").unwrap(), "Chapter One");
+    }
+
+    #[test]
+    fn extract_heading_finds_h2() {
+        let html = "<h2>Section A</h2><p>content</p>";
+        assert_eq!(extract_heading(html, "h2").unwrap(), "Section A");
+    }
+
+    #[test]
+    fn strip_html_tags_removes_all_tags() {
+        let html = "<p>Hello <b>world</b>!</p>";
+        assert_eq!(strip_html_tags(html), "Hello world!");
+    }
+
+    #[test]
+    fn strip_html_tags_handles_empty() {
+        assert_eq!(strip_html_tags(""), "");
+    }
+
+    #[test]
+    fn strip_html_tags_handles_no_tags() {
+        assert_eq!(strip_html_tags("plain text"), "plain text");
+    }
+
+    #[test]
+    fn strip_html_tags_normalizes_whitespace() {
+        let html = "<div>  lots   of   spaces  </div>";
+        assert_eq!(strip_html_tags(html), "lots of spaces");
+    }
 }

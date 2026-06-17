@@ -20,6 +20,10 @@ arrow-schema = { workspace = true }
 futures     = { workspace = true }
 async-trait = { workspace = true }
 
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tarpaulin_include)'] }
+
 [dev-dependencies]
 tokio    = { workspace = true }
 tempfile = { workspace = true }
+wiremock = "0.6"

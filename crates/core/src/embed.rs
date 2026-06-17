@@ -139,6 +139,63 @@ impl Embedder for FakeEmbedder {
     }
 }
 
+/// An embedder that fails on a configurable call, for testing error-recovery.
+///
+/// Behaves exactly like [`FakeEmbedder`] except that the Nth call to `embed()`
+/// returns `Err(CoreError::Http("simulated embed failure".to_string()))`.
+/// Use this to prove that the ingestion loop records a failure and continues
+/// rather than aborting (non-negotiable #2).
+#[cfg(any(test, feature = "test-support"))]
+pub struct FailingEmbedder {
+    pub dim: usize,
+    pub fail_on_call: usize,
+    pub counter: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl FailingEmbedder {
+    /// Create a new `FailingEmbedder` that fails on the `fail_on_call`-th
+    /// `embed()` call (1-indexed).
+    pub fn new(dim: usize, fail_on_call: usize) -> Self {
+        Self {
+            dim,
+            fail_on_call,
+            counter: std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+        }
+    }
+}
+
+#[cfg(any(test, feature = "test-support"))]
+#[async_trait]
+impl Embedder for FailingEmbedder {
+    async fn embed(&self, inputs: &[String]) -> Result<Vec<Vec<f32>>, CoreError> {
+        if inputs.is_empty() || inputs.iter().any(|s| s.is_empty()) {
+            return Err(CoreError::EmptyInput);
+        }
+
+        let call_count = self
+            .counter
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            + 1;
+        if call_count == self.fail_on_call {
+            return Err(CoreError::Http("simulated embed failure".to_string()));
+        }
+
+        // Same deterministic logic as FakeEmbedder
+        let vecs = inputs
+            .iter()
+            .map(|s| {
+                let sum: u64 = s.bytes().map(u64::from).sum();
+                (0..self.dim)
+                    .map(|i| ((sum + i as u64) % 256) as f32 / 255.0)
+                    .collect()
+            })
+            .collect();
+
+        Ok(vecs)
+    }
+}
+
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -199,5 +256,138 @@ mod tests {
         assert_eq!(result.len(), 2);
         assert_eq!(result[0].len(), 768);
         assert_eq!(result[1].len(), 768);
+    }
+
+    // ─── FailingEmbedder tests ─────────────────────────────────────────────────
+
+    // ─── OllamaEmbedder wiremock tests ─────────────────────────────────────────
+
+    #[tokio::test]
+    async fn ollama_embedder_success() {
+        use wiremock::{
+            matchers::{method, path},
+            Mock, MockServer, ResponseTemplate,
+        };
+
+        let mock_server = MockServer::start().await;
+
+        // Build a 4-dimensional embedding response
+        let response_body = serde_json::json!({
+            "embeddings": [[0.1, 0.2, 0.3, 0.4]]
+        });
+
+        Mock::given(method("POST"))
+            .and(path("/api/embed"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
+            .mount(&mock_server)
+            .await;
+
+        let embedder = OllamaEmbedder::new(mock_server.uri(), "test-model", 4);
+        let result = embedder.embed(&["hello".to_string()]).await.unwrap();
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].len(), 4);
+        assert!((result[0][0] - 0.1).abs() < 1e-6);
+    }
+
+    #[tokio::test]
+    async fn ollama_embedder_http_error() {
+        use wiremock::{
+            matchers::{method, path},
+            Mock, MockServer, ResponseTemplate,
+        };
+
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/api/embed"))
+            .respond_with(ResponseTemplate::new(500).set_body_string("server error"))
+            .mount(&mock_server)
+            .await;
+
+        let embedder = OllamaEmbedder::new(mock_server.uri(), "test-model", 4);
+        let result = embedder.embed(&["hello".to_string()]).await;
+        assert!(matches!(result, Err(CoreError::Http(_))));
+    }
+
+    #[tokio::test]
+    async fn ollama_embedder_count_mismatch() {
+        use wiremock::{
+            matchers::{method, path},
+            Mock, MockServer, ResponseTemplate,
+        };
+
+        let mock_server = MockServer::start().await;
+
+        let response_body = serde_json::json!({
+            "embeddings": [[0.1, 0.2, 0.3, 0.4]]  // only 1, but we sent 2
+        });
+
+        Mock::given(method("POST"))
+            .and(path("/api/embed"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
+            .mount(&mock_server)
+            .await;
+
+        let embedder = OllamaEmbedder::new(mock_server.uri(), "test-model", 4);
+        let result = embedder
+            .embed(&["hello".to_string(), "world".to_string()])
+            .await;
+        assert!(matches!(result, Err(CoreError::DimensionMismatch { .. })));
+    }
+
+    #[tokio::test]
+    async fn ollama_embedder_dim_mismatch() {
+        use wiremock::{
+            matchers::{method, path},
+            Mock, MockServer, ResponseTemplate,
+        };
+
+        let mock_server = MockServer::start().await;
+
+        let response_body = serde_json::json!({
+            "embeddings": [[0.1, 0.2, 0.3]]  // dim 3, but expected dim 4
+        });
+
+        Mock::given(method("POST"))
+            .and(path("/api/embed"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
+            .mount(&mock_server)
+            .await;
+
+        let embedder = OllamaEmbedder::new(mock_server.uri(), "test-model", 4);
+        let result = embedder.embed(&["hello".to_string()]).await;
+        assert!(matches!(result, Err(CoreError::DimensionMismatch { .. })));
+    }
+
+    #[tokio::test]
+    async fn ollama_embedder_empty_input() {
+        use wiremock::MockServer;
+
+        let mock_server = MockServer::start().await;
+        let embedder = OllamaEmbedder::new(mock_server.uri(), "test-model", 4);
+
+        let result = embedder.embed(&[] as &[String]).await;
+        assert!(matches!(result, Err(CoreError::EmptyInput)));
+
+        let result = embedder.embed(&["".to_string()]).await;
+        assert!(matches!(result, Err(CoreError::EmptyInput)));
+    }
+
+    #[tokio::test]
+    async fn failing_embedder_fails_on_nth_call() {
+        let embedder = FailingEmbedder::new(4, 2);
+
+        // First call succeeds
+        let result = embedder.embed(&["hello".to_string()]).await;
+        assert!(result.is_ok());
+
+        // Second call fails
+        let result = embedder.embed(&["world".to_string()]).await;
+        assert!(matches!(result, Err(CoreError::Http(_))));
+
+        // Third call succeeds again
+        let result = embedder.embed(&["third".to_string()]).await;
+        assert!(result.is_ok());
     }
 }

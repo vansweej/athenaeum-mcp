@@ -1,12 +1,12 @@
 //! `Engine` — composes an `Embedder` with a `Store` to provide the public
-//! `add_passage` / `search` API consumed by the MCP server.
+//! `upsert_passages` / `search` API consumed by the MCP server.
 //!
 //! # Write path
 //!
-//! [`Engine::add_passage`] is the minimal seeding / write path for build step 2.
-//! The full EPUB/PDF ingestion pipeline (`athenaeum-ingest`, build step 3) will
-//! call this method (or a batch form) per extracted chunk. No changes to the
-//! `Engine` API are expected when that pipeline lands.
+//! [`Engine::upsert_passages`] is the dedup-aware write path for ingestion.
+//! It embeds passages, then performs a document-level upsert (delete old +
+//! insert new) keyed on `doc_id`. The [`ingest`] function in the `athenaeum-ingest`
+//! crate calls this method per file. Tests may call it directly.
 //!
 //! # Constructors
 //!
@@ -31,6 +31,7 @@ pub struct Engine<E: Embedder> {
     dim: usize,
 }
 
+#[cfg(not(tarpaulin_include))]
 impl Engine<OllamaEmbedder> {
     /// Build an `Engine` from the given `Config`, connecting to the default
     /// Ollama instance and the LanceDB path specified in the config.
@@ -58,38 +59,24 @@ impl<E: Embedder> Engine<E> {
         }
     }
 
-    /// Embed a single passage and insert it into the store.
+    /// Batch embed and upsert passages for a single document.
     ///
-    /// Returns `CoreError::EmptyInput` if `text` is empty (propagated from the
-    /// embedder).
+    /// This is the dedup-aware primary write path. It replaces all prior stored
+    /// chunks for `doc_id` with the newly embedded `passages`. If `passages` is
+    /// empty, it still performs the delete (clearing any existing rows for this
+    /// doc) and returns `Ok(0)`.
     ///
-    /// This is the minimal write path for build step 2. The full ingestion
-    /// pipeline (build step 3) will call this or a batch variant per chunk.
-    pub async fn add_passage(
+    /// # Errors
+    /// Returns `CoreError::EmptyInput` if any text field is empty (propagated
+    /// from the embedder).
+    pub async fn upsert_passages(
         &self,
-        source: &str,
-        location: &str,
-        text: &str,
-    ) -> Result<(), CoreError> {
-        let vectors = self.embedder.embed(&[text.to_string()]).await?;
-        let passage = Passage {
-            source: source.to_string(),
-            location: location.to_string(),
-            text: text.to_string(),
-        };
-        self.store.add(&vectors, &[passage]).await
-    }
-
-    /// Batch embed and insert passages. This is the primary path for the
-    /// ingestion pipeline (build step 3).
-    ///
-    /// Returns `Ok(n)` where `n` is the number of passages added.
-    /// Returns `CoreError::EmptyInput` if any text field is empty.
-    pub async fn add_passages(
-        &self,
+        doc_id: &str,
         passages: &[(String, String, String)], // (source, location, text)
     ) -> Result<usize, CoreError> {
         if passages.is_empty() {
+            // Still call upsert_doc with empty data to clear any prior rows.
+            self.store.upsert_doc(doc_id, &[], &[]).await?;
             return Ok(0);
         }
 
@@ -99,13 +86,16 @@ impl<E: Embedder> Engine<E> {
         let passages_vec: Vec<Passage> = passages
             .iter()
             .map(|(source, location, text)| Passage {
+                doc_id: doc_id.to_string(),
                 source: source.clone(),
                 location: location.clone(),
                 text: text.clone(),
             })
             .collect();
 
-        self.store.add(&vectors, &passages_vec).await?;
+        self.store
+            .upsert_doc(doc_id, &vectors, &passages_vec)
+            .await?;
         Ok(passages.len())
     }
 
@@ -155,14 +145,24 @@ mod tests {
         let engine = Engine::with_parts(FakeEmbedder { dim: 768 }, store, 768);
 
         engine
-            .add_passage("book-a.epub", "p. 10", "the quick brown fox")
+            .upsert_passages(
+                "book-a.epub",
+                &[(
+                    "book-a.epub".to_string(),
+                    "p. 10".to_string(),
+                    "the quick brown fox".to_string(),
+                )],
+            )
             .await
             .unwrap();
         engine
-            .add_passage(
+            .upsert_passages(
                 "book-b.epub",
-                "p. 20",
-                "pack my box with five dozen liquor jugs",
+                &[(
+                    "book-b.epub".to_string(),
+                    "p. 20".to_string(),
+                    "pack my box with five dozen liquor jugs".to_string(),
+                )],
             )
             .await
             .unwrap();
@@ -206,14 +206,62 @@ mod tests {
             ),
         ];
 
-        let count = engine.add_passages(&passages).await.unwrap();
+        let count = engine
+            .upsert_passages("book-c-doc", &passages)
+            .await
+            .unwrap();
         assert_eq!(count, 3);
 
         let hits = engine.search("the quick brown fox", 1).await.unwrap();
         assert!(!hits.is_empty());
         assert_eq!(hits[0].text, "the quick brown fox");
 
-        let empty_res = engine.add_passages(&[]).await.unwrap();
+        let empty_res = engine.upsert_passages("empty-doc", &[]).await.unwrap();
         assert_eq!(empty_res, 0);
+    }
+
+    #[tokio::test]
+    async fn upsert_replaces_prior_chunks() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::open(dir.path(), "passages", 768).await.unwrap();
+        let engine = Engine::with_parts(FakeEmbedder { dim: 768 }, store, 768);
+
+        // First upsert: two passages for doc "d1"
+        let first = vec![
+            (
+                "book-a.epub".to_string(),
+                "p. 1".to_string(),
+                "first chunk".to_string(),
+            ),
+            (
+                "book-a.epub".to_string(),
+                "p. 2".to_string(),
+                "second chunk".to_string(),
+            ),
+        ];
+        engine.upsert_passages("d1", &first).await.unwrap();
+
+        // Second upsert: one different passage for same doc "d1"
+        let second = vec![(
+            "book-a.epub".to_string(),
+            "p. 3".to_string(),
+            "replacement chunk".to_string(),
+        )];
+        engine.upsert_passages("d1", &second).await.unwrap();
+
+        // Search should only find the replacement chunk (old ones were deleted)
+        let hits = engine.search("replacement chunk", 10).await.unwrap();
+        assert_eq!(hits.len(), 1, "should have exactly 1 passage after upsert");
+        assert_eq!(hits[0].text, "replacement chunk");
+
+        // The old chunks should not appear — with FakeEmbedder a non-empty table
+        // always returns the closest row, so verify the old texts are gone, not
+        // that no results are returned.
+        let old_hits = engine.search("first chunk", 10).await.unwrap();
+        assert_eq!(old_hits.len(), 1, "table has 1 row total after upsert");
+        assert_eq!(
+            old_hits[0].text, "replacement chunk",
+            "returned passage must be the replacement, not the old chunk"
+        );
     }
 }

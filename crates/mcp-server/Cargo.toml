@@ -20,6 +20,9 @@ serde          = { workspace = true }
 serde_json     = { workspace = true }
 schemars       = { workspace = true }
 
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tarpaulin_include)'] }
+
 [dev-dependencies]
 athenaeum-core = { path = "../core", features = ["test-support"] }
 tempfile       = { workspace = true }
