@@ -36,8 +36,13 @@ impl Engine<OllamaEmbedder> {
     /// Build an `Engine` from the given `Config`, connecting to the default
     /// Ollama instance and the LanceDB path specified in the config.
     pub async fn new(config: Config) -> Result<Self, CoreError> {
-        let embedder =
-            OllamaEmbedder::new(&config.ollama_url, &config.embed_model, config.embed_dim);
+        let embedder = OllamaEmbedder::with_timeouts(
+            &config.ollama_url,
+            &config.embed_model,
+            config.embed_dim,
+            config.embed_timeout,
+            config.embed_connect_timeout,
+        );
         let store = Store::open(&config.db_path, &config.table_name, config.embed_dim).await?;
         Ok(Self {
             embedder,

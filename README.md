@@ -97,6 +97,8 @@ tests with a `tempdir` database path).
 | `ollama_url` | `http://localhost:11434` | Ollama base URL (no trailing slash) |
 | `embed_model` | `nomic-embed-text` | Ollama embedding model |
 | `embed_dim` | `768` | Embedding vector dimension |
+| `embed_timeout` | `60s` | Total deadline for the Ollama embed request (tolerates cold model load) |
+| `embed_connect_timeout` | `5s` | TCP connect deadline (fails fast when Ollama is unreachable) |
 
 No environment-variable overrides exist in this build step.
 
