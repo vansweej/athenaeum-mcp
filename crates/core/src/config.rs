@@ -5,6 +5,15 @@
 //! struct directly (e.g. in tests, set `db_path` to a `tempdir()` path).
 
 use std::path::PathBuf;
+use std::time::Duration;
+
+/// Total deadline for the Ollama embed request (generous enough to tolerate a
+/// cold model load).
+pub const DEFAULT_EMBED_TIMEOUT: Duration = Duration::from_secs(60);
+
+/// TCP connect deadline for the Ollama embed request (short because "cannot
+/// connect" is unambiguous).
+pub const DEFAULT_EMBED_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Configuration for `athenaeum-core`.
 ///
@@ -23,6 +32,10 @@ pub struct Config {
     pub embed_model: String,
     /// Expected dimension of the embedding vectors produced by `embed_model`.
     pub embed_dim: usize,
+    /// Total deadline for the Ollama embed request (connect + response).
+    pub embed_timeout: Duration,
+    /// TCP connect deadline for the Ollama embed request.
+    pub embed_connect_timeout: Duration,
 }
 
 impl Default for Config {
@@ -33,6 +46,8 @@ impl Default for Config {
             ollama_url: "http://localhost:11434".to_string(),
             embed_model: "nomic-embed-text".to_string(),
             embed_dim: 768,
+            embed_timeout: DEFAULT_EMBED_TIMEOUT,
+            embed_connect_timeout: DEFAULT_EMBED_CONNECT_TIMEOUT,
         }
     }
 }
@@ -49,5 +64,18 @@ mod tests {
     #[test]
     fn default_table_name_is_passages() {
         assert_eq!(Config::default().table_name, "passages");
+    }
+
+    #[test]
+    fn default_embed_timeout_is_60_seconds() {
+        assert_eq!(Config::default().embed_timeout, Duration::from_secs(60));
+    }
+
+    #[test]
+    fn default_embed_connect_timeout_is_5_seconds() {
+        assert_eq!(
+            Config::default().embed_connect_timeout,
+            Duration::from_secs(5)
+        );
     }
 }
