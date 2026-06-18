@@ -38,26 +38,31 @@
             pkgs.cmake
             pkgs.pkg-config
             pkgs.makeWrapper
+            pkgs.cacert        # provides $SSL_CERT_FILE for the checkPhase reqwest tests
           ];
           buildInputs = [
             pkgs.pdfium-binaries
           ];
 
-          # buildRustPackage runs `cargo test` in the checkPhase, which exercises the
-          # real pdfium path (ingest::ingest_pdf_end_to_end and
-          # parser-spike::extracts_text_from_sample_pdf). pdfium-render's
-          # Pdfium::default() resolves libpdfium only via the OS dynamic-linker search
-          # path, so the checkPhase needs the same loader wiring the devShell gets from
-          # its shellHook. One export covers every workspace test binary, since cargo
-          # runs them in a single invocation. DYLD_LIBRARY_PATH on macOS,
-          # LD_LIBRARY_PATH on Linux; append rather than clobber any existing value.
+          # buildRustPackage runs `cargo test` in the checkPhase. Two wirings are
+          # needed there:
+          #  1. pdfium loader path — Pdfium::default() finds libpdfium only via the OS
+          #     dynamic-linker search path (LD_LIBRARY_PATH / DYLD_LIBRARY_PATH).
+          #  2. SSL_CERT_FILE — six core embed tests build a reqwest client whose
+          #     rustls-platform-verifier (-> rustls-native-certs on Linux) loads the OS
+          #     trust store eagerly; the hermetic sandbox has none, so point it at
+          #     pkgs.cacert. rustls-native-certs loads ONLY from SSL_CERT_FILE when set.
+          # One export each covers every workspace test binary (cargo runs them in a
+          # single invocation). Append loader paths rather than clobber.
           preCheck =
             let libDir = "${pkgs.pdfium-binaries}/lib";
-            in if pkgs.stdenv.isDarwin then ''
+            in ''
+              export SSL_CERT_FILE="${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
+            '' + (if pkgs.stdenv.isDarwin then ''
               export DYLD_LIBRARY_PATH="${libDir}''${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
             '' else ''
               export LD_LIBRARY_PATH="${libDir}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-            '';
+            '');
 
           # buildRustPackage installs every workspace binary. relevance-eval is a
           # hand-run, dev-shell-only evaluation instrument (live Ollama + human grader;
