@@ -43,11 +43,38 @@
             pkgs.pdfium-binaries
           ];
 
-          postInstall = ''
-            wrapProgram $out/bin/athenaeum-mcp-server \
-              --prefix ${if pkgs.stdenv.isDarwin then "DYLD_LIBRARY_PATH" else "LD_LIBRARY_PATH"} : \
-                ${pkgs.pdfium-binaries}/lib
-          '';
+          # buildRustPackage runs `cargo test` in the checkPhase, which exercises the
+          # real pdfium path (ingest::ingest_pdf_end_to_end and
+          # parser-spike::extracts_text_from_sample_pdf). pdfium-render's
+          # Pdfium::default() resolves libpdfium only via the OS dynamic-linker search
+          # path, so the checkPhase needs the same loader wiring the devShell gets from
+          # its shellHook. One export covers every workspace test binary, since cargo
+          # runs them in a single invocation. DYLD_LIBRARY_PATH on macOS,
+          # LD_LIBRARY_PATH on Linux; append rather than clobber any existing value.
+          preCheck =
+            let libDir = "${pkgs.pdfium-binaries}/lib";
+            in if pkgs.stdenv.isDarwin then ''
+              export DYLD_LIBRARY_PATH="${libDir}''${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
+            '' else ''
+              export LD_LIBRARY_PATH="${libDir}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+            '';
+
+          # buildRustPackage installs every workspace binary. relevance-eval is a
+          # hand-run, dev-shell-only evaluation instrument (live Ollama + human grader;
+          # see crates/ingest/src/bin/relevance-eval.rs) — drop it rather than ship a
+          # tool meant only for `nix develop`. The two deployed binaries both call
+          # pdfium-render's Pdfium::default(), which resolves libpdfium only via the OS
+          # loader path, so bake the pdfium-binaries lib dir onto that path with
+          # wrapProgram (DYLD_LIBRARY_PATH on macOS, LD_LIBRARY_PATH on Linux).
+          postInstall =
+            let libVar = if pkgs.stdenv.isDarwin then "DYLD_LIBRARY_PATH" else "LD_LIBRARY_PATH";
+            in ''
+              rm -f $out/bin/relevance-eval
+              for bin in athenaeum-mcp-server athenaeum-ingest; do
+                wrapProgram $out/bin/$bin \
+                  --prefix ${libVar} : ${pkgs.pdfium-binaries}/lib
+              done
+            '';
         };
 
         devShells.default = pkgs.mkShell {
