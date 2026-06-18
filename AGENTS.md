@@ -21,9 +21,15 @@ only captures the non-obvious facts an agent would otherwise get wrong.
 ## pdfium / nix gotchas
 
 - `Pdfium::default()` finds `libpdfium` only via the OS loader path (`LD_LIBRARY_PATH`
-  on Linux, `DYLD_LIBRARY_PATH` on macOS), exported by the flake `shellHook`. There is
-  no `PDFIUM_DYNAMIC_LIB_PATH` lookup. PDF tests (`parser-spike`, the ingest PDF path)
-  therefore pass **only inside the nix shell**.
+  on Linux, `DYLD_LIBRARY_PATH` on macOS); there is no `PDFIUM_DYNAMIC_LIB_PATH` lookup.
+  Two test paths need it: `parser-spike::extracts_text_from_sample_pdf` and the ingest
+  PDF path (`ingest::ingest_pdf_end_to_end`). The loader path is wired in two places:
+  the devShell `shellHook` (interactive `cargo test`) and the package's `preCheck` (the
+  `nix build` checkPhase). One `preCheck` export covers both crates, since cargo runs
+  all workspace test binaries in a single invocation. `pdfium-binaries` ships an
+  unversioned `lib/libpdfium.so` / `libpdfium.dylib` that pdfium-render `dlopen`s by
+  leaf name, so `LD_LIBRARY_PATH` resolves it directly (SONAME is irrelevant); only if a
+  Linux `nix build` somehow fails to locate it is an rpath/patchelf step needed.
 - After editing `flake.nix`, re-enter the shell (`nix develop`) — a running shell won't
   pick up hook changes.
 
