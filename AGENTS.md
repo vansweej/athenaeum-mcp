@@ -33,6 +33,53 @@ only captures the non-obvious facts an agent would otherwise get wrong.
 - After editing `flake.nix`, re-enter the shell (`nix develop`) — a running shell won't
   pick up hook changes.
 
+## reqwest / CA-cert nix gotcha
+
+- The six `core` `embed::tests::ollama_embedder_*` tests build a `reqwest::Client`
+  (`crates/core/src/embed.rs`, `OllamaEmbedder::with_timeouts` — the
+  `.expect("failed to build reqwest client")`). reqwest 0.13's `rustls` feature pulls
+  `rustls-platform-verifier`, which loads the OS trust store **eagerly at client-build
+  time**. The hermetic `nix build` checkPhase has no trust store, so it panics with
+  `General("No CA certificates were loaded from the system")` — even though those tests
+  use wiremock over plain HTTP and never do a TLS handshake.
+- **Active fix (A1):** `preCheck` exports
+  `SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt`, and `pkgs.cacert` is in
+  `nativeBuildInputs`. On Linux the verifier delegates to `rustls-native-certs`, which
+  loads **only** from `SSL_CERT_FILE` when set (proven for the locked
+  `rustls-platform-verifier 0.7.0`). Don't remove this export — the build is hermetic
+  and won't otherwise have certs. This is the same checkPhase that wires the pdfium
+  loader path above; both are sandbox needs the host supplies for free.
+- **Darwin caveat / fallback (A2):** on macOS the verifier uses the Keychain
+  (`security-framework`) and may ignore `SSL_CERT_FILE`; A1 passes the M1/M5 `nix build`
+  only because the Darwin sandbox still exposes system roots. If a Darwin `nix build`
+  ever fails on certs, switch to the fully-hermetic A2 (carries roots in the binary,
+  reads no OS store on any platform):
+  1. `Cargo.toml`: change reqwest to `features = ["json", "rustls-no-provider"]` (drops
+     the platform verifier) and add `rustls` + `webpki-roots = "1"`; add both to
+     `crates/core/Cargo.toml` `[dependencies]` too.
+  2. `crates/core/src/embed.rs`: build a `rustls::ClientConfig` from
+     `webpki_roots::TLS_SERVER_ROOTS` and pass it via
+     `reqwest::ClientBuilder::use_preconfigured_tls(...)`.
+  3. `flake.nix`: revert the A1 wiring — drop `pkgs.cacert` from `nativeBuildInputs` and
+     remove the `SSL_CERT_FILE` export so `preCheck` returns to pdfium-only:
+     ```nix
+     nativeBuildInputs = [
+       pkgs.protobuf
+       pkgs.cmake
+       pkgs.pkg-config
+       pkgs.makeWrapper
+     ];
+
+     preCheck =
+       let libDir = "${pkgs.pdfium-binaries}/lib";
+       in if pkgs.stdenv.isDarwin then ''
+         export DYLD_LIBRARY_PATH="${libDir}''${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
+       '' else ''
+         export LD_LIBRARY_PATH="${libDir}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+       '';
+     ```
+  Don't run A1 and A2 together — A2 replaces A1.
+
 ## rustfmt quirk
 
 - `rustfmt.toml` sets `imports_granularity = "Crate"` and `group_imports = "StdExternalCrate"`,
