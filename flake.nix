@@ -19,8 +19,37 @@
         # Pin the toolchain to the channel declared in rust-toolchain.toml so
         # there is a single version source of truth.
         rustToolchain = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
+
+        # nixpkgs' buildRustPackage, but using the pinned oxalica toolchain instead of
+        # nixpkgs' default rustc/cargo.
+        rustPlatform = pkgs.makeRustPlatform {
+          cargo = rustToolchain;
+          rustc = rustToolchain;
+        };
       in
       {
+        packages.default = rustPlatform.buildRustPackage {
+          pname = "athenaeum-mcp-server";
+          version = "0.1.0";
+          src = ./.;
+          cargoLock.lockFile = ./Cargo.lock;
+          nativeBuildInputs = [
+            pkgs.protobuf
+            pkgs.cmake
+            pkgs.pkg-config
+            pkgs.makeWrapper
+          ];
+          buildInputs = [
+            pkgs.pdfium-binaries
+          ];
+
+          postInstall = ''
+            wrapProgram $out/bin/athenaeum-mcp-server \
+              --prefix ${if pkgs.stdenv.isDarwin then "DYLD_LIBRARY_PATH" else "LD_LIBRARY_PATH"} : \
+                ${pkgs.pdfium-binaries}/lib
+          '';
+        };
+
         devShells.default = pkgs.mkShell {
           nativeBuildInputs = [
             rustToolchain          # Rust compiler, cargo, rustfmt, clippy
