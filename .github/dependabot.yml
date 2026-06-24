@@ -11,9 +11,3 @@ updates:
         patterns:
           - "*"
 
-  - package-ecosystem: github-actions
-    directory: "/"
-    schedule:
-      interval: weekly
-    labels:
-      - dependencies
