@@ -29,7 +29,7 @@ arrow-array  = "58"     # must match the version lancedb 0.30 exposes
 arrow-schema = "58"     # must match arrow-array
 
 # MCP server
-rmcp         = { version = "1.7", features = ["server", "transport-io", "macros", "schemars"] }   # latest: 1.7.0
+rmcp         = { version = "1.8", features = ["server", "transport-io", "macros", "schemars"] }   # latest: 1.8.0
 schemars     = "1"
 
 # Async utilities
@@ -41,7 +41,7 @@ pdfium-render = { version = "0.9", features = ["thread_safe", "pdfium_latest"] }
 epub          = "2"                                         # latest: 2.1.5
 
 # TOML parsing (relevance-eval)
-toml         = "0.8"
+toml         = "1"
 
 # Testing
 tempfile     = "3"
