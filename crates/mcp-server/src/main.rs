@@ -26,7 +26,7 @@ struct SearchArgs {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 struct IngestArgs {
-    /// Path to the PDF or EPUB file to ingest.
+    /// Path to the PDF, EPUB, or Markdown file to ingest.
     path: String,
 }
 
@@ -66,7 +66,7 @@ impl<E: Embedder + 'static> AthenaeumServer<E> {
         Ok(CallToolResult::success(vec![Content::text(json)]))
     }
 
-    #[tool(description = "Ingest a PDF or EPUB file into the personal library")]
+    #[tool(description = "Ingest a PDF, EPUB, or Markdown file into the personal library")]
     async fn ingest_file(
         &self,
         Parameters(IngestArgs { path }): Parameters<IngestArgs>,
