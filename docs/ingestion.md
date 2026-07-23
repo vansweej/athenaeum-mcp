@@ -102,6 +102,53 @@ Extracted:
 - Simple HTML tag matching (not a full HTML parser); malformed HTML may yield incomplete text.
 - Chapters and sections detected only via `<h1>` and `<h2>` tags; other heading levels ignored.
 
+### Markdown Files
+
+**Supported:** `.md` and `.markdown` files (case-insensitive extension matching).
+
+**Extraction:**
+- Title derived from filename stem (e.g., `quality-manual.md` → title `quality-manual`), same convention as PDF/EPUB.
+- Leading YAML front matter (`---` ... `---`) is stripped unconditionally — it is not parsed into fields.
+- `#` headings become the **chapter**; `##` headings become the **section** (resets on each new `#`).
+- `###` and deeper headings are folded into the surrounding body text (not used for citations), mirroring how EPUB ignores heading levels beyond `<h2>`.
+- Inline formatting (bold, italic, links) and code spans are reduced to their visible plain text by the Markdown parser (pulldown-cmark) — no manual stripping needed.
+- Fenced code blocks and tables are flattened to plain text; this may split awkwardly under sentence-boundary chunking (see Known Limitations).
+- Location metadata: `chapter > section`, same format as EPUB.
+
+**Example:**
+```
+File: quality-manual.md
+Extracted:
+  - title: "quality-manual"
+  - chapter: "Calibration", section: "Tolerances": "All instruments must be calibrated..."
+  - chapter: "Calibration", section: None: "General calibration procedures..."
+  - ...
+```
+
+```mermaid
+flowchart TD
+    A[read .md file] --> B[strip_front_matter]
+    B --> C["pulldown-cmark Parser (event stream)"]
+    C --> D{event}
+    D -->|Start Heading| E[flush current body -> EpubSection]
+    D -->|Text / Code| F[append to body or heading buffer]
+    D -->|End Heading H1| G[set chapter, reset section]
+    D -->|End Heading H2| H[set section]
+    D -->|End Heading H3plus| I[append heading text to body]
+    E --> J[sections]
+    J --> K[chunk_text per section]
+    K --> L["Chunk (title, chapter, section, text)"]
+```
+
+```mermaid
+flowchart LR
+    H1["# Calibration"] --> CH["chapter = Calibration"]
+    H2["## Tolerances"] --> SE["section = Tolerances"]
+    H3["### Notes"] --> BODY["folded into body text"]
+    CH --> LOC["citation: Calibration &gt; Tolerances"]
+    SE --> LOC
+```
+
 ---
 
 ## Chunking Model
@@ -216,7 +263,7 @@ Total chunks: 123
 
 ### File Discovery
 
-- Recursively discovers `.pdf` and `.epub` files (case-insensitive).
+- Recursively discovers `.pdf`, `.epub`, `.md`, and `.markdown` files (case-insensitive).
 - Skips all other file types silently (or reports error if `--verbose`).
 - Files are processed in sorted order for consistent runs.
 - Progress is printed per-file with chunk count.
@@ -432,10 +479,11 @@ If any query returns no results or low scores, investigate:
 
 1. **PDF text extraction** — Works only with text-based PDFs (not scanned images). No OCR support.
 2. **EPUB chapter detection** — Simple HTML tag matching (not a full HTML parser). Malformed HTML may yield incomplete text.
-3. **Token estimation** — Approximate (1 word ≈ 1.3 tokens). Not a real tokenizer.
-4. **Sentence splitting** — Simple heuristic (may not work for all languages or punctuation styles).
-5. **No deduplication** — Re-ingesting creates duplicates.
-6. **No resume** — Interrupted runs must be restarted from scratch.
+3. **Markdown code/table flattening** — Fenced code blocks and tables are reduced to plain text; sentence-boundary chunking may split them awkwardly (v1 limitation).
+4. **Token estimation** — Approximate (1 word ≈ 1.3 tokens). Not a real tokenizer.
+5. **Sentence splitting** — Simple heuristic (may not work for all languages or punctuation styles).
+6. **No deduplication** — Re-ingesting creates duplicates.
+7. **No resume** — Interrupted runs must be restarted from scratch.
 
 ### Potential Future Improvements
 

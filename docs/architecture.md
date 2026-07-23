@@ -77,9 +77,9 @@ flowchart TB
     end
     
     subgraph ingest["athenaeum-ingest<br/>(ingestion pipeline)"]
-        ext["extract<br/>extract_pdf()<br/>extract_epub()<br/>ExtractedDocument<br/>EpubSection"]
+        ext["extract<br/>extract_pdf()<br/>extract_epub()<br/>extract_md()<br/>ExtractedDocument<br/>EpubSection"]
         chk["chunking<br/>chunk_text()<br/>ChunkingConfig<br/>TextChunk"]
-        ing["ingest<br/>ingest()<br/>ingest_pdf()<br/>ingest_epub()<br/>IngestSummary"]
+        ing["ingest<br/>ingest()<br/>ingest_pdf()<br/>ingest_epub()<br/>ingest_md()<br/>IngestSummary"]
         bin["bin/athenaeum-ingest<br/>(CLI: bulk directory)"]
         
         ext --> ing
@@ -154,7 +154,7 @@ When ingesting a document (via CLI or `ingest_file` tool):
 sequenceDiagram
     participant C as CLI / ingest_file tool
     participant I as ingest()
-    participant X as extract_pdf()<br/>extract_epub()
+    participant X as extract_pdf()<br/>extract_epub()<br/>extract_md()
     participant K as chunk_text()
     participant E as Engine
     participant O as Ollama
@@ -175,11 +175,26 @@ sequenceDiagram
 ```
 
 **Key facts:**
-- File type determined by extension (`.pdf` or `.epub`).
+- File type determined by extension (`.pdf`, `.epub`, `.md`/`.markdown`).
 - **One embedding call per document** — all chunks batched together.
 - Chunking uses **sentence-boundary splitting** with configurable overlap.
-- Location metadata preserved: PDF uses `page N`, EPUB uses `chapter > section`.
+- Location metadata preserved: PDF uses `page N`, EPUB and Markdown use `chapter > section`.
 - Append is idempotent at the LanceDB level but **creates duplicates** if re-run (no dedup).
+- `extract_md` uses `pulldown-cmark` (pure-Rust, no native dependency unlike the pdfium PDF path) — no build/toolchain burden, cross-compiles cleanly.
+
+```mermaid
+flowchart TD
+    F[ingest file] --> X{extension}
+    X -->|pdf| P["extract_pdf -> pages"]
+    X -->|epub| E["extract_epub -> sections"]
+    X -->|md / markdown| M["extract_md -> sections"]
+    X -->|other| U["Err: UnsupportedFileType"]
+    P --> C[chunk_text]
+    E --> C
+    M --> C
+    C --> UP["upsert_passages(doc_id)"]
+    UP --> DB[(LanceDB)]
+```
 
 ---
 
@@ -225,8 +240,8 @@ LanceDB table `passages` (768-dim vectors):
 
 ### IngestError variants
 
-- `ParseFailed(String)` — PDF/EPUB extraction failed.
-- `UnsupportedFileType(String)` — file extension not `.pdf` or `.epub`.
+- `ParseFailed(String)` — PDF/EPUB/Markdown extraction failed.
+- `UnsupportedFileType(String)` — file extension not `.pdf`, `.epub`, `.md`, or `.markdown`.
 - `IoFailed(String)` — file I/O error.
 - `EmbedFailed(CoreError)` — embedding failed (from CoreError).
 - `StoreFailed(CoreError)` — storage failed (from CoreError).
