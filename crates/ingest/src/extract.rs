@@ -420,7 +420,9 @@ mod tests {
 
         let (title, sections) = extract_md(&path).await.expect("extract_md should succeed");
         assert_eq!(title, "sample");
-        assert!(sections.iter().any(|s| s.chapter.as_deref() == Some("Chapter One")));
+        assert!(sections
+            .iter()
+            .any(|s| s.chapter.as_deref() == Some("Chapter One")));
         assert!(sections
             .iter()
             .any(|s| s.section.as_deref() == Some("Section A")));
