@@ -18,9 +18,9 @@ architecture decisions, and deferred feature roadmap.
 
 ## Architecture (write path)
 
-The ingestion pipeline extracts text from PDF/EPUB files, chunks it at sentence
-boundaries, embeds chunks via Ollama, and stores them in LanceDB. The dedup-aware
-upsert path replaces prior chunks for a file when it is re-ingested.
+The ingestion pipeline extracts text from PDF/EPUB/Markdown files, chunks it at
+sentence boundaries, embeds chunks via Ollama, and stores them in LanceDB. The
+dedup-aware upsert path replaces prior chunks for a file when it is re-ingested.
 
 ```mermaid
 flowchart LR
@@ -35,12 +35,16 @@ flowchart LR
 See `docs/ingestion.md` for the full ingestion guide and `docs/relevance-eval.md`
 for the quality gate workflow.
 
+**Supported formats:** PDF, EPUB, and Markdown (`.md`/`.markdown` — headings
+become chapter/section citations; YAML front matter is stripped). See
+`docs/ingestion.md` for extraction details per format.
+
 ## Workspace layout
 
 | Crate | Name | Role |
 |---|---|---|
 | `crates/core` | `athenaeum-core` | Ollama embedding + LanceDB storage + `search(query, k)` + `upsert_passages` write path |
-| `crates/ingest` | `athenaeum-ingest` | EPUB / PDF parse, chunk, cite |
+| `crates/ingest` | `athenaeum-ingest` | EPUB / PDF / Markdown parse, chunk, cite |
 | `crates/mcp-server` | `athenaeum-mcp-server` | `rmcp` binary — the MCP server spine |
 | `crates/parser-spike` | `athenaeum-parser-spike` | Permanent pdfium + epub version canary |
 

@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use crate::error::IngestError;
 
-/// Recursively collect `.pdf` and `.epub` files under `dir`, returned sorted.
+/// Recursively collect `.pdf`, `.epub`, `.md`, and `.markdown` files under `dir`, returned sorted.
 ///
 /// When `recursive` is `false`, subdirectories are ignored. Extension matching
 /// is case-insensitive. I/O failures are mapped to [`IngestError::IoFailed`].
@@ -21,7 +21,11 @@ pub fn discover_documents(dir: &Path, recursive: bool) -> Result<Vec<PathBuf>, I
             if let Some(ext) = path.extension() {
                 if let Some(ext_str) = ext.to_str() {
                     let ext_lower = ext_str.to_lowercase();
-                    if ext_lower == "pdf" || ext_lower == "epub" {
+                    if ext_lower == "pdf"
+                        || ext_lower == "epub"
+                        || ext_lower == "md"
+                        || ext_lower == "markdown"
+                    {
                         files.push(path);
                     }
                 }
@@ -61,6 +65,25 @@ mod tests {
             .collect();
         assert!(names.contains(&"doc1.pdf".to_string()));
         assert!(names.contains(&"doc2.epub".to_string()));
+    }
+
+    #[test]
+    fn discovers_markdown_files() {
+        let dir = tempdir().unwrap();
+        fs::write(dir.path().join("notes.md"), "# notes").unwrap();
+        fs::write(dir.path().join("readme.markdown"), "# readme").unwrap();
+        fs::write(dir.path().join("skip.txt"), "text").unwrap();
+
+        let files = discover_documents(dir.path(), false).unwrap();
+        assert_eq!(files.len(), 2);
+
+        let names: Vec<String> = files
+            .iter()
+            .map(|p| p.file_name().unwrap().to_str().unwrap().to_string())
+            .collect();
+        assert!(names.contains(&"notes.md".to_string()));
+        assert!(names.contains(&"readme.markdown".to_string()));
+        assert!(!names.contains(&"skip.txt".to_string()));
     }
 
     #[test]

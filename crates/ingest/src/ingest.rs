@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::chunking::{chunk_text, ChunkingConfig};
 use crate::error::IngestError;
-use crate::extract::{extract_epub, extract_pdf};
+use crate::extract::{extract_epub, extract_md, extract_pdf};
 use athenaeum_core::embed::Embedder;
 use athenaeum_core::Engine;
 
@@ -58,6 +58,7 @@ pub async fn ingest<E: Embedder>(
     let chunks = match extension.as_str() {
         "pdf" => ingest_pdf(path).await?,
         "epub" => ingest_epub(path).await?,
+        "md" | "markdown" => ingest_md(path).await?,
         _ => {
             return Err(IngestError::UnsupportedFileType(format!(
                 "unsupported file type: {}",
@@ -115,6 +116,28 @@ async fn ingest_pdf(path: &Path) -> Result<Vec<Chunk>, IngestError> {
 /// Ingest an EPUB file
 async fn ingest_epub(path: &Path) -> Result<Vec<Chunk>, IngestError> {
     let (title, sections) = extract_epub(path).await?;
+    let mut chunks = Vec::new();
+
+    for section in sections {
+        let text_chunks = chunk_text(&section.text, ChunkingConfig::default());
+
+        for text_chunk in text_chunks {
+            chunks.push(Chunk {
+                title: title.clone(),
+                chapter: section.chapter.clone(),
+                section: section.section.clone(),
+                page: None,
+                text: text_chunk.text,
+            });
+        }
+    }
+
+    Ok(chunks)
+}
+
+/// Ingest a Markdown file
+async fn ingest_md(path: &Path) -> Result<Vec<Chunk>, IngestError> {
+    let (title, sections) = extract_md(path).await?;
     let mut chunks = Vec::new();
 
     for section in sections {
