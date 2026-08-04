@@ -84,9 +84,14 @@ pub struct Store {
 impl Store {
     /// Open (or create) the passage table at `db_path`.
     ///
-    /// If the table does not yet exist it is created empty with the correct
-    /// schema. All LanceDB errors are mapped to `CoreError::StoreFailed`.
+    /// Creates `db_path` (and any missing parent directories) if it does not
+    /// already exist. If the table does not yet exist it is created empty with
+    /// the correct schema. All LanceDB errors are mapped to
+    /// `CoreError::StoreFailed`.
     pub async fn open(db_path: &Path, table_name: &str, dim: usize) -> Result<Self, CoreError> {
+        std::fs::create_dir_all(db_path)
+            .map_err(|e| CoreError::StoreFailed(format!("failed to create db directory: {e}")))?;
+
         let path = db_path
             .to_str()
             .ok_or_else(|| CoreError::StoreFailed("non-UTF-8 db_path".to_string()))?;
