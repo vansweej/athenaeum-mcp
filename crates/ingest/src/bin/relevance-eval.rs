@@ -8,14 +8,25 @@
 //!
 //! ```text
 //! nix develop --command cargo run -p athenaeum-ingest --bin relevance-eval -- \
-//!     --corpus /path/to/corpus
+//!     --corpus /path/to/corpus [--store /path/to/store]
 //! ```
 //!
 //! # Preconditions
 //!
 //! - Live Ollama running with `nomic-embed-text` loaded.
-//! - Run from the repo root (default store is `./data/athenaeum`).
 //! - The `--corpus` directory must contain `.pdf` and/or `.epub` files.
+//!
+//! # Store behaviour
+//!
+//! By default (no `--store` flag) a self-deleting temporary directory is used
+//! as the LanceDB store. The store is created fresh on each run, the corpus is
+//! re-embedded in full, and the directory is deleted automatically when the
+//! process exits. This prevents the eval from writing into the production
+//! library.
+//!
+//! Pass `--store <DIR>` to persist the store across runs (e.g. to avoid
+//! re-embedding a large corpus). Note that each run without `--store` always
+//! re-embeds the entire corpus from scratch.
 //!
 //! # Output
 //!
@@ -50,6 +61,12 @@ struct Args {
     /// Number of top results to return per query.
     #[arg(long, default_value_t = 5)]
     k: usize,
+
+    /// Directory to use as the LanceDB store. When omitted a self-deleting
+    /// temporary directory is created; the corpus is re-embedded on every run.
+    /// Pass an explicit path to persist the store across runs.
+    #[arg(long, value_name = "DIR")]
+    store: Option<PathBuf>,
 }
 
 struct EvalQuery {
@@ -108,8 +125,26 @@ async fn main() -> Result<()> {
     println!("Top-k: {}", args.k);
     println!();
 
+    // ── Store setup ────────────────────────────────────────────────────────
+    // Keep `_temp_dir` in scope for the entire run so the temp store is not
+    // deleted until the process exits.
+    let _temp_dir: Option<tempfile::TempDir>;
+    let mut config = Config::default();
+    match args.store {
+        Some(ref store_path) => {
+            config.db_path = store_path.clone();
+            _temp_dir = None;
+            println!("Store: {} (persistent)", store_path.display());
+        }
+        None => {
+            let dir = tempfile::tempdir().context("Failed to create temporary store directory")?;
+            config.db_path = dir.path().to_path_buf();
+            println!("Store: {} (temporary, deleted on exit)", dir.path().display());
+            _temp_dir = Some(dir);
+        }
+    }
+
     // ── Initialize engine ──────────────────────────────────────────────────
-    let config = Config::default();
     let engine = Engine::new(config)
         .await
         .context("Failed to initialize engine")?;
