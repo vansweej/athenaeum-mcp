@@ -139,7 +139,10 @@ async fn main() -> Result<()> {
         None => {
             let dir = tempfile::tempdir().context("Failed to create temporary store directory")?;
             config.db_path = dir.path().to_path_buf();
-            println!("Store: {} (temporary, deleted on exit)", dir.path().display());
+            println!(
+                "Store: {} (temporary, deleted on exit)",
+                dir.path().display()
+            );
             _temp_dir = Some(dir);
         }
     }

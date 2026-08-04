@@ -141,10 +141,7 @@ mod tests {
             "XDG_DATA_HOME" => Some("/custom/xdg".to_string()),
             _ => None,
         });
-        assert_eq!(
-            path,
-            PathBuf::from("/custom/xdg/athenaeum/data/athenaeum")
-        );
+        assert_eq!(path, PathBuf::from("/custom/xdg/athenaeum/data/athenaeum"));
     }
 
     #[test]
