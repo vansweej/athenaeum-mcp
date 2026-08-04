@@ -95,7 +95,6 @@ Add an MCP server entry to your `opencode.json`:
         "-p",
         "athenaeum-mcp-server"
       ],
-      "cwd": "/path/to/athenaeum-mcp",
       "env": {}
     }
   }
@@ -106,8 +105,8 @@ Add an MCP server entry to your `opencode.json`:
 - `type: "local"` — runs a local command.
 - `command` — `nix` (to enter the dev shell).
 - `args` — `develop`, repo path, `--command`, then the cargo command.
-- `cwd` — **must be the repo root** so the relative `db_path` (`./data/athenaeum`) resolves correctly.
 - `env` — empty (no environment-variable overrides).
+- No `cwd` entry is needed — the server resolves its data directory from `$XDG_DATA_HOME` / `$HOME` at startup, not from the working directory.
 
 ### Alternative: Prebuilt Binary
 
@@ -125,7 +124,6 @@ Then register it:
     "athenaeum": {
       "type": "local",
       "command": "/path/to/athenaeum-mcp/target/release/athenaeum-mcp-server",
-      "cwd": "/path/to/athenaeum-mcp",
       "env": {}
     }
   }

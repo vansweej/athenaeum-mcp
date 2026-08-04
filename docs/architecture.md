@@ -22,7 +22,7 @@ flowchart LR
         S["athenaeum-mcp-server<br/>(MCP/stdio)"]
         ENG["athenaeum-core<br/>Engine"]
         OL["Ollama<br/>nomic-embed-text<br/>:11434"]
-        DB["LanceDB<br/>./data/athenaeum"]
+        DB["LanceDB<br/>~/.local/share/athenaeum/data/athenaeum"]
         CLI["athenaeum-ingest<br/>(CLI binary)"]
     end
     
@@ -51,7 +51,7 @@ flowchart LR
 - **MCP server** — single-file ingestion via `ingest_file(path)` tool; used by agents during sessions.
 - **CLI binary** — bulk directory ingestion via `athenaeum-ingest`; used for corpus-scale loading.
 
-Both write to the same LanceDB store at `./data/athenaeum`.
+Both write to the same LanceDB store at `~/.local/share/athenaeum/data/athenaeum` (resolved at startup from `$XDG_DATA_HOME` or `$HOME`).
 
 ---
 
@@ -223,7 +223,7 @@ LanceDB table `passages` (768-dim vectors):
 2. **Empty input validation** — both `Embedder::embed()` and `Engine::add_passage()` return `CoreError::EmptyInput` if any text is empty or the slice is empty.
 3. **Empty table behavior** — `Store::search()` returns `Ok(vec![])` rather than an error.
 4. **Cosine distance** — LanceDB search uses cosine distance; score is `(1 - distance).clamp(0, 1)`.
-5. **Relative db_path** — the default `./data/athenaeum` is relative to the working directory. CLI and server must be launched from the same directory to share one store.
+5. **Absolute db_path** — the default resolves to `~/.local/share/athenaeum/data/athenaeum` (XDG-aware). CLI and server share one store regardless of working directory.
 6. **No dedup on append** — `Store::add()` is a pure append; re-ingesting the same file creates duplicate rows.
 7. **Batch embedding per document** — `Engine::add_passages()` sends all texts in one Ollama request; large documents mean large requests.
 
@@ -256,7 +256,7 @@ All configuration is compile-time defaults in `Config::default()`:
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `db_path` | `./data/athenaeum` | LanceDB database directory (relative) |
+| `db_path` | `~/.local/share/athenaeum/data/athenaeum` | LanceDB database directory (resolved from `$XDG_DATA_HOME` if set, else `~/.local/share`; absolute) |
 | `table_name` | `passages` | LanceDB table name |
 | `ollama_url` | `http://localhost:11434` | Ollama base URL (no trailing slash) |
 | `embed_model` | `nomic-embed-text` | Ollama embedding model |

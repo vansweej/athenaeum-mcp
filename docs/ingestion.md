@@ -39,11 +39,11 @@ unchanged — upsert replaces the storage layer only.
 ### Schema change (v0.2)
 
 A `doc_id` column was added to the LanceDB schema (breaking change). If you
-have an existing `./data/athenaeum` store from a prior version, delete it
-before running the new binary:
+have an existing store from a prior version, delete it before running the new
+binary:
 
 ```bash
-rm -rf ./data/athenaeum
+rm -rf ~/.local/share/athenaeum/data/athenaeum
 ```
 
 Then re-ingest your corpus. This is a one-time migration; subsequent ingests
@@ -272,56 +272,16 @@ Total chunks: 123
 
 ## Operating at Scale: Critical Gotchas
 
-### ⚠️ Gotcha 1: Re-running Appends Duplicates
+### ⚠️ Gotcha 1: Re-running Without Upsert Creates Duplicates (pre-v0.2 only)
 
-**The Problem:**
-LanceDB's `add()` operation is a pure **append**. There is no deduplication or upsert. If you run the CLI twice on the same directory, you will have **duplicate rows** in the database.
+**Note:** Since v0.2 the ingestion path is dedup-aware (upsert by `doc_id`). Re-ingesting the same file replaces its prior chunks rather than duplicating them. This gotcha applies only if you are running a pre-v0.2 binary.
 
-**Example:**
+**To reset the store entirely:**
 ```bash
-# First run: 100 chunks ingested
-athenaeum-ingest /path/to/documents
-
-# Second run: 100 chunks appended again
-athenaeum-ingest /path/to/documents
-
-# Result: 200 rows in the database (100 duplicates)
+rm -rf ~/.local/share/athenaeum/data/athenaeum
 ```
 
-**Impact:**
-- Search results will include duplicates.
-- Scores may be skewed (same passage appears twice).
-- Storage bloat.
-
-**Mitigation:**
-- **Ingest each source once.** Keep a record of what you've ingested.
-- **To re-ingest:** Delete `./data/athenaeum` and start clean.
-- **Future enhancement:** An upsert mode or dedup tool (not yet implemented).
-
-### ⚠️ Gotcha 2: Working Directory Coupling
-
-**The Problem:**
-The default `db_path` is **relative**: `./data/athenaeum`. This means the CLI and server are coupled to the working directory.
-
-**Example:**
-```bash
-# Terminal 1: Server from repo root
-cd /path/to/athenaeum-mcp
-cargo run -p athenaeum-mcp-server
-# Creates/uses: /path/to/athenaeum-mcp/data/athenaeum
-
-# Terminal 2: CLI from a subdirectory
-cd /path/to/athenaeum-mcp/crates/ingest
-cargo run -p athenaeum-ingest -- /path/to/documents
-# Creates/uses: /path/to/athenaeum-mcp/crates/ingest/data/athenaeum
-# ❌ Different database!
-```
-
-**Mitigation:**
-- **Always run both from the repo root.**
-- If you need absolute paths, modify `Config::db_path` in `crates/core/src/config.rs` and rebuild.
-
-### ⚠️ Gotcha 3: Per-Document Single Embed Call
+### ⚠️ Gotcha 2: Per-Document Single Embed Call
 
 **The Problem:**
 `Engine::add_passages()` sends **all chunks of a document in one Ollama request**. Large documents mean large requests.
@@ -343,25 +303,13 @@ Response: 50 × 768-dim vectors
 - Monitor Ollama memory usage during ingestion.
 - If Ollama crashes, reduce document size or increase Ollama's memory allocation.
 
-### ⚠️ Gotcha 4: Sequential Processing, No Resume
+### ⚠️ Gotcha 3: Sequential Processing, No Resume
 
 **The Problem:**
-Files are processed one at a time. If the CLI is interrupted (Ctrl+C, crash, network failure), there is **no checkpoint**. Already-ingested files will be re-appended on restart (ties back to Gotcha 1).
-
-**Example:**
-```bash
-athenaeum-ingest /path/to/documents --recursive
-# Processes: file1.pdf ✓, file2.pdf ✓, file3.pdf ✓, file4.pdf ✗ (error)
-# Ctrl+C
-
-# Restart:
-athenaeum-ingest /path/to/documents --recursive
-# Re-processes: file1.pdf ✓ (duplicate!), file2.pdf ✓ (duplicate!), ...
-```
+Files are processed one at a time. If the CLI is interrupted (Ctrl+C, crash, network failure), there is **no checkpoint**. Since v0.2 uses upsert, re-running is safe (no duplicates), but any partially-ingested file will be re-processed from scratch.
 
 **Mitigation:**
 - Ingest in smaller batches (e.g., 10–20 files per run).
-- If interrupted, delete `./data/athenaeum` and restart.
 - Future enhancement: Checkpoint/resume support (not yet implemented).
 
 ---
@@ -411,7 +359,7 @@ For a large library (1000+ documents):
 
 4. **If quality is poor, delete and restart:**
    ```bash
-   rm -rf ./data/athenaeum
+   rm -rf ~/.local/share/athenaeum/data/athenaeum
    # Adjust chunking params or corpus selection
    ```
 
@@ -527,12 +475,10 @@ If any query returns no results or low scores, investigate:
 **Symptom:** CLI reports successful ingestion, but `search(query, k)` returns `[]`.
 
 **Likely causes:**
-1. CLI and server running from different directories (Gotcha 2).
-2. Ollama not running or model not loaded.
-3. Query is too specific or semantically distant from corpus.
+1. Ollama not running or model not loaded.
+2. Query is too specific or semantically distant from corpus.
 
 **Fix:**
-- Verify both run from repo root: `pwd`
 - Verify Ollama: `curl http://localhost:11434/api/tags`
 - Try a broader query: `search("book", k=5)`
 
