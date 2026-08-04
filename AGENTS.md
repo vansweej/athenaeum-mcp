@@ -109,8 +109,10 @@ only captures the non-obvious facts an agent would otherwise get wrong.
 
 - No env-var config. Defaults are compile-time in `crates/core/src/config.rs`; override by
   constructing `Config` directly (tests pass a tempdir `db_path`).
-- Default `db_path` is the **relative** `./data/athenaeum` — run the CLI and server from the
-  repo root or they touch different stores.
+- Default `db_path` is resolved **automatically** at startup: `$XDG_DATA_HOME/athenaeum/data/athenaeum`
+  when `XDG_DATA_HOME` is set and non-empty, otherwise `~/.local/share/athenaeum/data/athenaeum`.
+  The path is always absolute — the CLI and server no longer need to be launched from the same
+  working directory. Tests still override `db_path` with a `tempfile::tempdir()`.
 - LanceDB `Store::add()` is append-only with no dedup; re-ingesting a file duplicates rows
   (see `docs/ingestion.md`).
 - Bumping `lancedb` requires bumping `arrow-array` / `arrow-schema` in lockstep to the arrow

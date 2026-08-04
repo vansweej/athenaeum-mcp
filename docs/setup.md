@@ -69,7 +69,7 @@ All configuration is hardcoded in `Config::default()` (see `crates/core/src/conf
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `db_path` | `./data/athenaeum` | LanceDB database directory |
+| `db_path` | `~/.local/share/athenaeum/data/athenaeum` | LanceDB database directory (resolved from `$XDG_DATA_HOME` if set, else `~/.local/share`; absolute, not relative to the working directory) |
 | `table_name` | `passages` | LanceDB table name |
 | `ollama_url` | `http://localhost:11434` | Ollama base URL (no trailing slash) |
 | `embed_model` | `nomic-embed-text` | Ollama embedding model |
@@ -82,13 +82,9 @@ All configuration is hardcoded in `Config::default()` (see `crates/core/src/conf
 1. **In tests:** Construct `Config` directly with custom values (e.g., `db_path` set to `tempfile::tempdir()`).
 2. **In production:** Modify `Config::default()` in `crates/core/src/config.rs` and rebuild.
 
-### Important: Working Directory Coupling
+### Data Directory
 
-The default `db_path` is **relative**: `./data/athenaeum`. This means:
-
-- The MCP server and the CLI must be launched from the **same working directory** (repo root) to share one store.
-- If you run the server from `/path/to/athenaeum-mcp` and the CLI from `/path/to/athenaeum-mcp/crates/ingest`, they will create separate databases.
-- **Always run both from the repo root.**
+The default `db_path` resolves to `~/.local/share/athenaeum/data/athenaeum` (or `$XDG_DATA_HOME/athenaeum/data/athenaeum` when `XDG_DATA_HOME` is set). This is an absolute path computed at startup — the server and CLI share the same store regardless of the working directory from which they are launched.
 
 ---
 
@@ -205,13 +201,13 @@ ollama pull nomic-embed-text
 
 **Fix:** Run `athenaeum-ingest` to load documents (see [ingestion.md](ingestion.md)).
 
-### Working Directory Mismatch
+### Empty Database
 
-**Symptom:** CLI ingests files, but the server's search returns no results.
+**Symptom:** CLI ingests files, but the server's search returns no results even though ingestion reported success.
 
-**Cause:** CLI and server are running from different directories, creating separate `./data/athenaeum` stores.
+**Cause:** No documents have been ingested yet, or Ollama was unreachable during ingestion.
 
-**Fix:** Always run both from the repo root.
+**Fix:** Re-run `athenaeum-ingest` and verify Ollama is running.
 
 ---
 

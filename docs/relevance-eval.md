@@ -14,7 +14,6 @@ passages — or whether it shreds technical prose / silently truncates content.
 
 - **Live Ollama** running with `nomic-embed-text` loaded.
 - **Nix shell:** run all commands inside `nix develop`.
-- **Repo root:** run from the repository root (the default store is `./data/athenaeum`).
 - **Corpus:** a directory with `.pdf` and/or `.epub` files to ingest for the eval.
 
 ## How to run
@@ -27,6 +26,10 @@ nix develop --command cargo run -p athenaeum-ingest --bin relevance-eval -- \
 
 Optional flags:
 - `--k <N>` — top-k results per query (default: 5).
+- `--store <DIR>` — persist the LanceDB store at `<DIR>` across runs (useful to
+  avoid re-embedding a large corpus). When omitted, a self-deleting temporary
+  directory is used and the corpus is re-embedded from scratch on every run.
+  The eval never touches the production library regardless of this flag.
 
 ## Writing queries
 

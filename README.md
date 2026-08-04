@@ -84,7 +84,9 @@ nix develop --command cargo fmt
 nix develop --command cargo tarpaulin
 
 # Run the MCP server (exposes search(query, k) over stdio)
-# Requires Ollama running with nomic-embed-text; LanceDB data stored under ./data/athenaeum
+# Requires Ollama running with nomic-embed-text
+# Data directory is resolved automatically (XDG_DATA_HOME if set, else ~/.local/share),
+# defaulting to ~/.local/share/athenaeum/data/athenaeum — no need to launch from the repo root.
 nix develop --command cargo run -p athenaeum-mcp-server
 ```
 
@@ -96,7 +98,7 @@ tests with a `tempdir` database path).
 
 | Field | Default | Description |
 |---|---|---|
-| `db_path` | `./data/athenaeum` | LanceDB database directory |
+| `db_path` | `~/.local/share/athenaeum/data/athenaeum` | LanceDB database directory — resolved automatically: `$XDG_DATA_HOME/athenaeum/data/athenaeum` if `XDG_DATA_HOME` is set and non-empty, otherwise `~/.local/share/athenaeum/data/athenaeum`; always absolute, never relative to the working directory; tests override with a tempdir |
 | `table_name` | `passages` | LanceDB table name |
 | `ollama_url` | `http://localhost:11434` | Ollama base URL (no trailing slash) |
 | `embed_model` | `nomic-embed-text` | Ollama embedding model |
