@@ -32,6 +32,15 @@ only captures the non-obvious facts an agent would otherwise get wrong.
   Linux `nix build` somehow fails to locate it is an rpath/patchelf step needed.
 - After editing `flake.nix`, re-enter the shell (`nix develop`) — a running shell won't
   pick up hook changes.
+- `pdfium-render` must be ≥ 0.9.3 (0.9.2 hardcodes `*const i8` and fails to compile on
+  unsigned-`c_char` targets such as aarch64-linux). The bindings are pinned explicitly
+  to `pdfium_7763` (not the floating `pdfium_latest`, and not `pdfium_7881`) because the
+  nixpkgs `pdfium-binaries` currently shipped is older than 7881 — the 7881 bindings call
+  a symbol (`FPDFTextObj_SetFontSize`) that library doesn't export, failing at runtime
+  with `dlsym ... symbol not found`. Raise the pin only after nixpkgs `pdfium-binaries`
+  is bumped to ≥ 7881, and use `parser-spike::extracts_text_from_sample_pdf` and
+  `ingest::ingest_pdf_end_to_end` — the two live-loader PDF tests — to confirm the new
+  bindings/library pair actually load before merging.
 
 ## reqwest / CA-cert nix gotcha
 
